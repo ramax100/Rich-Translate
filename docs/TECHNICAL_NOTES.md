@@ -1,8 +1,16 @@
-# Catatan teknis — Rich Translate 0.9.0
+# Catatan teknis — Rich Translate 0.10.0
 
-Android 11+ (API 30+). Package `id.richtranslate`, versionCode **9**, versionName `0.9.0`. Mesin terjemahan hanya **Google ML Kit on-device**, default Inggris → Indonesia. Debug build pengujian, bukan rilis produksi/Play Store.
+Android 11+ (API 30+). Package `id.richtranslate`, versionCode **10**, versionName `0.10.0`. Mesin terjemahan hanya **Google ML Kit on-device**, default Inggris → Indonesia. Debug build pengujian, bukan rilis produksi/Play Store.
 
-## Perubahan 0.9
+## Perubahan 0.10
+
+Latar strip hasil kini putih transparan alpha 232/255 (sekitar 91% opak), tepi feather maksimum 2 dp dan sudut membulat. Ini bukan blur asli di belakang window. Glyph tetap alpha 255, warna RGB 20/20/20; tidak ada filter atau shader blur pada teks. Latar sumber dan hasil di-union menjadi satu path untuk mencegah alpha bertumpuk. Path disimpan dan dihitung ulang hanya ketika scroll berubah, bukan pada setiap draw. Bagian terjemahan yang jauh di luar viewport tidak dimasukkan ke path yang digambar. Tidak ada screenshot tambahan, bitmap mask, layer software atau efek yang membutuhkan Android 12+.
+
+Padding teks tetap 2 dp dengan ruang tepi tambahan 2 dp agar feather tidak terpotong pada batas biasa; glyph tetap sejajar lokasi sumber. Di batas layar/area scroll, clipping tetap diperlukan. Latar yang transparan dapat memperlihatkan sedikit gambar/tulisan asli di bawahnya; ini bukan inpainting.
+
+Tambahan 7 tes: alpha latar, union tanpa overdraw ganda, feather tepi, glyph tajam/solid, tanpa screenshot buffer/software layer, draw statis, serta kontras di atas area gelap. Tampilan simulasi berada di images/result-soft.png; itu bukan hasil OCR di HP.
+
+## Perubahan sebelumnya — 0.9
 
 Menu Utama dan Setelan dipisah. Slogan, panel contoh, petunjuk panjang berulang dan status model ganda dihapus dari dashboard. Bantuan, disclosure Accessibility dan atribusi tetap tersedia. Unduh model disembunyikan jika model siap. Pemilih bahasa ditumpuk pada layar sempit atau font scale besar. Tab dipertahankan saat activity dibuat ulang. Hanya Mulai atau Hentikan yang ditampilkan sesuai sesi.
 
@@ -22,7 +30,7 @@ Tidak ada server eksternal pengguna yang dimatikan/dihapus: versi sebelumnya han
 
 - Garis seleksi **merah #E53935** dan logo Rich Translate.
 - Screenshot Accessibility hanya setelah pengguna melingkari teks dan melepas jari; bukan rekaman kontinu. Tidak memakai MediaProjection atau izin SYSTEM_ALERT_WINDOW.
-- Hasil strip **putih per baris, teks hitam** di posisi teks asal. Ukuran diperkirakan dari tinggi glyph OCR dan skala screenshot, bukan ukuran tetap/minimal 14 sp.
+- Hasil strip **putih transparan lembut per baris, teks hitam tajam** di posisi teks asal. Ukuran diperkirakan dari tinggi glyph OCR dan skala screenshot, bukan ukuran tetap/minimal 14 sp.
 - Terjemahan lebih panjang bisa diperkecil sampai sekitar 22%, lalu wrapping lokal. Tinggi pertumbuhan dibatasi dekat sumber/sebelum blok lain. Teks overflow tetap lengkap dan dapat digulir. Blok terpisah tidak digabung otomatis.
 - Satu host overlay untuk proses/hasil, bukan satu jendela per blok. × tetap pada host yang sama; tidak ada koreksi posisi per blok via updateViewLayout atau pemasangan ulang × saat hasil muncul. Toast hasil panjang tetap dihapus.
 - Host tidak mengambil fokus game. Sentuhan ke game ditahan selama hasil terbuka; tekan × untuk bermain lagi. Ini tidak otomatis menghentikan animasi/game di belakang.
@@ -32,7 +40,7 @@ Ukuran/posisi hasil adalah perkiraan OCR, bukan deteksi font asli game. Ketebala
 
 ## Instalasi dan penggunaan
 
-1. Hentikan sesi lama, pasang **RichTranslate-0.9.0.apk** sebagai pembaruan Rich Translate 0.5/0.6/0.7. Package dan sertifikat sama, versionCode meningkat. Tidak perlu uninstall untuk mempertahankan data.
+1. Hentikan sesi lama, pasang **RichTranslate-0.10.0.apk** sebagai pembaruan Rich Translate 0.5/0.6/0.7. Package dan sertifikat sama, versionCode meningkat. Tidak perlu uninstall untuk mempertahankan data.
 2. Buka Rich Translate. Pengaturan server lama dibersihkan otomatis. Pilih pasangan bahasa dan tekan **Siapkan bahasa offline** bila model belum siap. Jika sebelumnya hanya memakai server, model ML Kit mungkin perlu diunduh terlebih dahulu.
 3. Unduhan pertama memerlukan internet; setelah model siap, terjemahan bisa offline. Model terjemahan tidak dibundel dalam APK. Resource OCR Latin dan mesin native dibundel.
 4. Pastikan **Rich Translate • terjemahan layar** aktif di Setelan → Accessibility. Pada Android tertentu, sideload mungkin dibatasi; hanya izinkan setelan terbatas bila memahami dan memercayai APK.
@@ -53,7 +61,7 @@ Belum ada detail HP/Android/game/perekam atau reproduksi perangkat untuk laporan
 
 Build final `assembleDebug testDebugUnitTest lintDebug`: **BUILD SUCCESSFUL**.
 
-- **59 tes lulus**, 0 gagal/error: Geometry 5, GestureTrace 5, InlineLayout 19, Overlay/UI 12, OverlayHost 7, OfflineMigration 3, MenuLayout 8.
+- **66 tes lulus**, 0 gagal/error: Geometry 5, GestureTrace 5, InlineLayout 19, Overlay/UI 12, OverlayHost 7, OfflineMigration 3, MenuLayout 8, SoftBackground 7.
 - Tes bola diperbarui: alpha pusat 102/255, RGB netral, ukuran tetap, pinggir area sentuh transparan, kontras pada latar terang dan gelap.
 - Tes migrasi memastikan pengaturan/kredensial server terhapus, setelan pengguna penting tetap, pembersihan idempotent dan startup layanan ikut membersihkan.
 - Tes stabilitas host, pemetaan posisi, layout white/black, scrolling hasil, garis merah, bounded gesture dan lifecycle sebelumnya tetap lulus.

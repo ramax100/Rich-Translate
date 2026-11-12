@@ -1,5 +1,13 @@
 # Catatan perubahan
 
+## 0.10.0
+
+- Latar hasil menjadi putih sedikit transparan dengan sudut membulat dan tepi lembut.
+- Teks tetap gelap, tajam dan tidak ikut diburamkan.
+- Lapisan sumber dan terjemahan digabung agar area tumpang tindih tidak menjadi putih pekat.
+- Tidak memakai blur gambar game, filter teks, screenshot beku atau software layer.
+- Menu ringkas, bola abu-abu dan ML Kit offline tetap dipertahankan.
+
 ## 0.9.0
 
 - Menu dibagi menjadi tab Utama dan Setelan.

@@ -2,7 +2,7 @@
 
 **Penerjemah teks game dan layar untuk Android 11+.**
 
-[Unduh APK](https://github.com/ramax100/Rich-Translate/releases/tag/v0.9.0) · [Catatan perubahan](CHANGELOG.md) · [Dokumentasi teknis](docs/TECHNICAL_NOTES.md)
+[Unduh APK](https://github.com/ramax100/Rich-Translate/releases/tag/v0.10.0) · [Catatan perubahan](CHANGELOG.md) · [Dokumentasi teknis](docs/TECHNICAL_NOTES.md)
 
 ## Tentang Aplikasi
 
@@ -14,9 +14,11 @@ Bahasa bawaan **Inggris → Indonesia**. Model bahasa perlu diunduh sekali; sete
 
 - **Bola melayang transparan** untuk memilih teks tanpa berpindah aplikasi.
 - **Seleksi bebas** dengan melingkari tulisan yang ingin diterjemahkan.
-- **Hasil di posisi teks asli**, dengan latar putih dan ukuran huruf mengikuti perkiraan OCR.
+- **Hasil di posisi teks asli**, dengan latar putih transparan lembut, tepi halus, dan teks tajam. Ukuran huruf mengikuti perkiraan OCR.
 - **Terjemahan offline** setelah model bahasa siap, tanpa server penerjemah aplikasi.
 - **Menu sederhana** untuk bahasa, model offline, akses layar, dan pengaturan.
+
+Latar lembut ini adalah lapisan putih transparan, **bukan blur asli pada gambar game**. Teks terjemahan tidak ikut diburamkan.
 
 > OCR yang dibundel mendukung tulisan Latin. Hasil terjemahan dan penempatannya dapat kurang tepat. Layar yang dilindungi dari screenshot tidak didukung. APK saat ini adalah debug build pengujian; belum diuji pada HP fisik. Batasan rekaman/streaming dijelaskan di [dokumentasi teknis](docs/TECHNICAL_NOTES.md).
 

@@ -218,7 +218,7 @@ public class MainActivity extends Activity {
     addButton(settingsPanel, about, 48);
     about.setOnClickListener(v -> showHelp());
     gap(settingsPanel, 16);
-    TextView version = Ui.text(this, "Versi 0.9.0 · Android 11+", 11, Ui.MUTED);
+    TextView version = Ui.text(this, "Versi 0.10.0 · Android 11+", 11, Ui.MUTED);
     version.setGravity(Gravity.CENTER);
     settingsPanel.addView(version);
     selectTab(selectedTab);
@@ -487,9 +487,9 @@ public class MainActivity extends Activity {
                 + "Cara pakai: ketuk bola, lingkari teks, lalu lepas jari. Geser bola untuk pindah;"
                 + " tekan lama untuk berhenti. Geser strip putih untuk hasil panjang. Tekan × untuk"
                 + " kembali bermain.\n\n"
-                + "Game yang melindungi screenshot tidak didukung. Hasil memakai bidang putih dan"
-                + " teks hitam, bukan inpainting AI. Ukuran dan posisi mengikuti perkiraan OCR."
-                + " Hanya tombol × muncul bersama hasil.\n\n"
+                + "Game yang melindungi screenshot tidak didukung. Hasil memakai latar putih"
+                + " transparan lembut dan teks hitam, bukan inpainting AI. Ukuran dan posisi"
+                + " mengikuti perkiraan OCR. Hanya tombol × muncul bersama hasil.\n\n"
                 + "Accessibility membantu menghindari konflik sesi MediaProjection dengan perekam."
                 + " Android/penghemat baterai tetap dapat menghentikan layanan; tidak ada jaminan"
                 + " anti-close. Tidak ada permintaan mematikan penghemat baterai secara paksa.\n\n"

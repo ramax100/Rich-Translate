@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.view.MotionEvent;
@@ -13,12 +14,17 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Transparent local overlay with opaque white bands behind individual lines. No card/footer. */
+/** Soft translucent white bands. Only their edges are feathered; glyphs stay sharp. */
 final class TranslationCard extends View {
   final TextPlacement.Result placement;
   final String translatedText;
   final List<RectF> bands = new ArrayList<>();
+  static final int BACKGROUND_ALPHA = 232;
   private final Paint white = new Paint(Paint.ANTI_ALIAS_FLAG);
+  private final Paint feather = new Paint(Paint.ANTI_ALIAS_FLAG);
+  private final Path sourceShape = new Path(),
+      visibleShape = new Path(),
+      backgroundShape = new Path();
   private final int slop;
   private float downY, lastY, offset;
   private boolean dragging;
@@ -27,7 +33,14 @@ final class TranslationCard extends View {
     super(context);
     this.placement = placement;
     this.translatedText = value;
-    white.setColor(Color.WHITE);
+    white.setColor(Color.argb(BACKGROUND_ALPHA, 255, 255, 255));
+    feather.setColor(Color.WHITE);
+    feather.setStyle(Paint.Style.STROKE);
+    feather.setStrokeJoin(Paint.Join.ROUND);
+    feather.setStrokeCap(Paint.Cap.ROUND);
+    for (Rect line : placement.sourceLines)
+      sourceShape.addRoundRect(
+          new RectF(line), placement.pad * 2f, placement.pad * 2f, Path.Direction.CW);
     slop = ViewConfiguration.get(context).getScaledTouchSlop();
     setContentDescription("Terjemahan: " + value);
     setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
@@ -45,17 +58,48 @@ final class TranslationCard extends View {
               placement.textX + placement.layout.getLineRight(i) + placement.pad,
               base + glyphs.bottom + placement.pad));
     }
+    rebuildBackground();
+  }
+
+  /** Rebuild only when content scrolls, never on every draw or animation frame. */
+  private void rebuildBackground() {
+    visibleShape.reset();
+    float radius = placement.pad * 2f;
+    for (RectF band : bands) {
+      if (band.bottom - offset < -placement.halo
+          || band.top - offset > placement.bounds.height() + placement.halo) continue;
+      visibleShape.addRoundRect(
+          band.left,
+          band.top - offset,
+          band.right,
+          band.bottom - offset,
+          radius,
+          radius,
+          Path.Direction.CW);
+    }
+    // Union prevents source masks and translated strips being painted twice and turning opaque.
+    if (!backgroundShape.op(sourceShape, visibleShape, Path.Op.UNION)) {
+      backgroundShape.set(sourceShape);
+      backgroundShape.addPath(visibleShape);
+    }
   }
 
   @Override
   protected void onDraw(Canvas canvas) {
     super.onDraw(canvas);
-    // Erase only the old text strips, not the entire bounding rectangle between lines.
-    for (Rect line : placement.sourceLines) canvas.drawRect(line, white);
+    // A small static white halo softens the outline; this does not blur the game or the text.
+    feather.setStrokeWidth(placement.halo * 2f);
+    feather.setAlpha(5);
+    canvas.drawPath(backgroundShape, feather);
+    feather.setStrokeWidth(placement.halo * 1.25f);
+    feather.setAlpha(12);
+    canvas.drawPath(backgroundShape, feather);
+    feather.setStrokeWidth(placement.halo * .5f);
+    feather.setAlpha(24);
+    canvas.drawPath(backgroundShape, feather);
+    canvas.drawPath(backgroundShape, white);
     canvas.save();
-    canvas.translate(0, -offset);
-    for (RectF band : bands) canvas.drawRoundRect(band, placement.pad, placement.pad, white);
-    canvas.translate(placement.textX, placement.textY);
+    canvas.translate(placement.textX, placement.textY - offset);
     placement.layout.draw(canvas);
     canvas.restore();
   }
@@ -92,7 +136,10 @@ final class TranslationCard extends View {
   }
 
   private void scrollResult(float next) {
-    offset = Math.max(0, Math.min(placement.contentHeight - getHeight(), next));
+    float value = Math.max(0, Math.min(placement.contentHeight - getHeight(), next));
+    if (value == offset) return;
+    offset = value;
+    rebuildBackground();
     postInvalidateOnAnimation();
   }
 

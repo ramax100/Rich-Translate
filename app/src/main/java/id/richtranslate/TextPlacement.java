@@ -16,7 +16,7 @@ final class TextPlacement {
     final List<Rect> sourceLines;
     final StaticLayout layout;
     final float sizePx, sizeSp, textX, textY;
-    final int pad, contentHeight;
+    final int pad, halo, contentHeight;
     final boolean scrolls;
 
     Result(
@@ -27,6 +27,7 @@ final class TextPlacement {
         float x,
         float y,
         int pad,
+        int halo,
         int contentHeight) {
       this.bounds = bounds;
       this.sourceLines = lines;
@@ -36,6 +37,7 @@ final class TextPlacement {
       this.textX = x;
       this.textY = y;
       this.pad = pad;
+      this.halo = halo;
       this.contentHeight = contentHeight;
       this.scrolls = contentHeight > bounds.height();
     }
@@ -99,11 +101,12 @@ final class TextPlacement {
     screenWidth = Math.max(1, screenWidth);
     screenHeight = Math.max(1, screenHeight);
     int pad = Math.max(1, Ui.dp(context, 2));
+    int halo = Math.max(1, Ui.dp(context, 2)), outerPad = pad + halo;
     Rect anchor = new Rect(source);
     if (!anchor.intersect(0, 0, screenWidth, screenHeight)) anchor.set(0, 0, 1, 1);
-    int left = Math.max(0, anchor.left - pad), top = Math.max(0, anchor.top - pad);
-    int right = Math.min(screenWidth, anchor.right + pad);
-    // The text starts at the original glyph position; background alone adds 2dp around it.
+    int left = Math.max(0, anchor.left - outerPad), top = Math.max(0, anchor.top - outerPad);
+    int right = Math.min(screenWidth, anchor.right + outerPad);
+    // Glyphs keep the source origin. Background gets 2dp padding + a 2dp feather allowance.
     int textWidth = Math.max(1, Math.min(anchor.width(), screenWidth - anchor.left));
     float nominal =
         Float.isFinite(sourceFontPx) && sourceFontPx > 0
@@ -142,7 +145,9 @@ final class TextPlacement {
     }
     float textX = anchor.left - left, textY = anchor.top - top - glyphTop(measured);
     int contentHeight =
-        Math.max(anchor.bottom - top + pad, (int) Math.ceil(textY + glyphBottom(measured)) + pad);
+        Math.max(
+            anchor.bottom - top + outerPad,
+            (int) Math.ceil(textY + glyphBottom(measured)) + outerPad);
     // Even without a neighbouring OCR block, stay local instead of growing to a full-screen panel.
     int localBottom =
         anchor.top
@@ -171,6 +176,7 @@ final class TextPlacement {
         textX,
         textY,
         pad,
+        halo,
         contentHeight);
   }
 }

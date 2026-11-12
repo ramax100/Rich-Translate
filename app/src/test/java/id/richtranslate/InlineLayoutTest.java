@@ -37,7 +37,7 @@ public class InlineLayoutTest {
   public void shortNumberDoesNotBecomeLargeCard() {
     Rect source = new Rect(470, 140, 575, 180);
     TextPlacement.Result result = place("100", source, 48);
-    assertTrue(result.bounds.width() <= source.width() + Ui.dp(context, 4));
+    assertTrue(result.bounds.width() <= source.width() + Ui.dp(context, 8));
     assertTrue(result.bounds.height() < source.height() + Ui.dp(context, 12));
   }
 
@@ -88,9 +88,9 @@ public class InlineLayoutTest {
     TextPlacement.Result r =
         place("Menyerang lawan dan meningkatkan kekuatan serangan selama dua giliran.", src, 28);
     assertTrue(r.layout.getLineCount() > 1);
-    assertTrue(r.bounds.width() <= src.width() + Ui.dp(context, 4));
+    assertTrue(r.bounds.width() <= src.width() + Ui.dp(context, 8));
     assertTrue(r.sizePx >= 28 * .78 - .01);
-    assertEquals(src.top - Ui.dp(context, 2), r.bounds.top);
+    assertEquals(src.top - Ui.dp(context, 4), r.bounds.top);
   }
 
   @Test
@@ -135,7 +135,10 @@ public class InlineLayoutTest {
     TranslationCard c = card("Buka pintu", r);
     Bitmap b = Bitmap.createBitmap(c.getWidth(), c.getHeight(), Bitmap.Config.ARGB_8888);
     c.draw(new Canvas(b));
-    assertEquals(Color.WHITE, b.getPixel(r.pad, r.pad));
+    int background = b.getPixel(r.pad + r.halo + 8, r.pad + r.halo - 2);
+    assertTrue(Color.alpha(background) > 220 && Color.alpha(background) < 255);
+    assertEquals(Color.red(background), Color.green(background));
+    assertEquals(Color.green(background), Color.blue(background));
     assertEquals(Color.rgb(20, 20, 20), r.layout.getPaint().getColor());
     b.recycle();
   }
