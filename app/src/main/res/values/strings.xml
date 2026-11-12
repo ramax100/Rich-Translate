@@ -1,0 +1,4 @@
+<resources>
+    <string name="accessibility_description">Rich Translate menggunakan screenshot melalui Accessibility hanya saat kamu memilih area teks. OCR dan screenshot diproses di perangkat. ML Kit menerjemahkan di perangkat setelah model bahasa siap. Screenshot dan teks OCR tidak dikirim ke server aplikasi. SDK Google dapat memakai jaringan untuk model dan diagnostik. Tidak membaca hierarki teks aplikasi, tidak melakukan gestur otomatis, dan tidak mengendalikan game. Aktifkan layanan ini hanya jika kamu menyetujui akses screenshot layar. Layanan dapat dihentikan melalui aplikasi atau setelan Accessibility.</string>
+    <string name="accessibility_summary">Screenshot atas permintaan untuk OCR dan terjemahan lokal dengan ML Kit.</string>
+</resources>
