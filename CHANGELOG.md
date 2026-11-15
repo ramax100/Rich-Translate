@@ -1,5 +1,17 @@
 # Catatan perubahan
 
+## 0.12.0
+
+- Pilihan DeepL API dengan key sendiri di Setelan; ML Kit offline tetap bawaan.
+- Persetujuan terpisah sebelum teks OCR dikirim ke DeepL; screenshot tetap lokal.
+- Field key tersamarkan, simpan terenkripsi AES-GCM/Android Keystore, hapus key dan uji koneksi/penggunaan akun.
+- Endpoint Free/Pro otomatis berdasarkan akhiran key; hanya HTTPS host resmi, tanpa redirect.
+- Batch blok OCR, deduplikasi dan cache sementara; tanpa retry terjemahan/fallback otomatis.
+- Penanganan key ditolak, kuota habis, rate limit dan jaringan tanpa mencatat key/teks/respons mentah.
+- DeepL tersedia di manual dan Auto dialog tanpa unduhan model bahasa ML Kit. OCR Latin tetap lokal.
+- Label hasil mengikuti mesin: Google Translate untuk ML Kit, DeepL API untuk DeepL.
+- Tidak ada key bawaan, server perantara aplikasi atau pengembalian fitur Argos.
+
 ## 0.11.0
 
 - Auto dialog opsional di Setelan dengan persetujuan pemindaian berkala terpisah.

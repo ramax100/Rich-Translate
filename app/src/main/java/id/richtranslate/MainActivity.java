@@ -19,6 +19,7 @@ public class MainActivity extends Activity {
   private int selectedTab;
   private Button startButton, stopButton, modelButton;
   private TranslationEngine downloadEngine;
+  private DeepLSettings providerSettings;
   private boolean downloading, modelsReady, registered;
   private int modelQuery;
   private final List<Spinner> languagePickers = new ArrayList<>();
@@ -76,6 +77,8 @@ public class MainActivity extends Activity {
   }
 
   private void build() {
+    if (providerSettings != null) providerSettings.close();
+    languagePickers.clear();
     scroll = new ScrollView(this);
     scroll.setBackgroundColor(Ui.BG);
     scroll.setFillViewport(true);
@@ -207,6 +210,9 @@ public class MainActivity extends Activity {
     errorText = Ui.text(this, "", 12, Ui.MUTED);
     errorCard.addView(errorText);
 
+    LinearLayout engines = card(settingsPanel);
+    providerSettings = new DeepLSettings(this, this::providerChanged);
+    engines.addView(providerSettings, new LinearLayout.LayoutParams(-1, -2));
     LinearLayout preferences = card(settingsPanel);
     preferences.addView(Ui.bold(this, "Preferensi", 17, Ui.INK));
     gap(preferences, 18);
@@ -218,7 +224,13 @@ public class MainActivity extends Activity {
         false,
         false);
     gap(preferences, 16);
-    toggle(preferences, "Unduh via Wi-Fi", null, "wifi", true, false);
+    toggle(
+        preferences,
+        "Unduh model via Wi-Fi",
+        "Khusus unduhan model ML Kit, bukan koneksi DeepL.",
+        "wifi",
+        true,
+        false);
     divider(preferences);
     toggle(preferences, "Mode streaming", "Dapat membuat rekaman hitam.", "secure", false, true);
     Button about = secondary("Bantuan & privasi");
@@ -226,7 +238,7 @@ public class MainActivity extends Activity {
     addButton(settingsPanel, about, 48);
     about.setOnClickListener(v -> showHelp());
     gap(settingsPanel, 16);
-    TextView version = Ui.text(this, "Versi 0.11.0 · Android 11+", 11, Ui.MUTED);
+    TextView version = Ui.text(this, "Versi 0.12.0 · Android 11+", 11, Ui.MUTED);
     version.setGravity(Gravity.CENTER);
     settingsPanel.addView(version);
     selectTab(selectedTab);
@@ -312,8 +324,9 @@ public class MainActivity extends Activity {
                 .setTitle("Aktifkan auto dialog?")
                 .setMessage(
                     "Setelah kamu melingkari seluruh kotak dialog, screenshot dipindai berkala"
-                        + " selama mode otomatis berjalan. OCR dan terjemahan diproses di"
-                        + " perangkat. Metadata jendela dipakai untuk memilih game; hierarki teks"
+                        + " selama mode otomatis berjalan. OCR diproses lokal. Terjemahan mengikuti"
+                        + " mesin pilihan: ML Kit lokal; DeepL mengirim teks ke server dan memakai"
+                        + " kuota akun. Metadata jendela dipakai untuk memilih game; hierarki teks"
                         + " tidak dibaca. Ketukan pada hasil langsung masuk ke game, bukan"
                         + " menggulir. Android 11–13 atau fallback Android 14+ dapat berkedip"
                         + " singkat saat hasil disembunyikan untuk scan. Tekan × untuk berhenti;"
@@ -365,7 +378,9 @@ public class MainActivity extends Activity {
     startButton.setEnabled(!downloading);
     stopButton.setVisibility(active ? View.VISIBLE : View.GONE);
     for (Spinner spinner : languagePickers) spinner.setEnabled(!downloading && !active);
-    modelButton.setVisibility(modelsReady && !downloading ? View.GONE : View.VISIBLE);
+    modelButton.setVisibility(
+        Prefs.deepL(this) || (modelsReady && !downloading) ? View.GONE : View.VISIBLE);
+    if (providerSettings != null) providerSettings.refreshControls(active || downloading);
     modelButton.setEnabled(!downloading && !active);
     String last = Prefs.get(this).getString("last_error", "");
     errorCard.setVisibility(last.isEmpty() ? View.GONE : View.VISIBLE);
@@ -375,6 +390,15 @@ public class MainActivity extends Activity {
   private void checkModels() {
     if (downloadStatus == null) return;
     final int query = ++modelQuery;
+    if (Prefs.deepL(this)) {
+      modelsReady = false;
+      downloadStatus.setText(
+          new DeepLKeyStore(this).hasKey()
+              ? "DeepL API · online · kuota akun sendiri"
+              : "DeepL API · simpan key di Setelan terlebih dahulu");
+      refresh();
+      return;
+    }
     final String source = Prefs.source(this), target = Prefs.target(this);
     if (source.equals(target)) {
       modelsReady = false;
@@ -412,7 +436,15 @@ public class MainActivity extends Activity {
     }
   }
 
+  private void providerChanged() {
+    RichAccessibilityService service = RichAccessibilityService.connectedService();
+    if (service != null && service.isActive()) service.stopSession(null);
+    checkModels();
+    refresh();
+  }
+
   private void downloadModels() {
+    if (Prefs.deepL(this)) return;
     if (downloading) return;
     if (Prefs.source(this).equals(Prefs.target(this))) {
       downloadStatus.setText("Pilih dua bahasa yang berbeda.");
@@ -458,9 +490,10 @@ public class MainActivity extends Activity {
         .setTitle("Akses screenshot melalui Accessibility")
         .setMessage(
             "Rich Translate menggunakan kemampuan screenshot layar untuk membaca area yang kamu"
-                + " pilih dan menerjemahkannya di perangkat. Gambar dan teks tidak dikirim ke"
-                + " server aplikasi. SDK Google dapat memakai jaringan untuk model dan"
-                + " diagnostik.\n\n"
+                + " pilih. OCR dan screenshot diproses di perangkat. ML Kit menerjemahkan lokal;"
+                + " jika DeepL dipilih dan disetujui terpisah, teks OCR dikirim langsung ke server"
+                + " DeepL memakai key kamu. Screenshot tidak diunggah. Tidak ada server aplikasi."
+                + " SDK Google dapat memakai jaringan untuk model dan diagnostik.\n\n"
                 + "Layanan tidak membaca hierarki teks aplikasi, tidak menekan tombol, tidak"
                 + " melakukan gestur otomatis, dan tidak bermain untukmu. Screenshot diminta"
                 + " setelah kamu selesai melingkari teks. Jika Auto dialog diaktifkan terpisah,"
@@ -492,7 +525,18 @@ public class MainActivity extends Activity {
       Toast.makeText(this, "Bahasa sumber dan tujuan harus berbeda.", Toast.LENGTH_SHORT).show();
       return;
     }
-    if (!modelsReady) {
+    if (Prefs.deepL(this)
+        && (!Prefs.get(this).getBoolean("deepl_consent", false)
+            || !new DeepLKeyStore(this).hasKey())) {
+      Toast.makeText(
+              this,
+              "Pilih DeepL, setujui pengiriman teks dan simpan API key di Setelan.",
+              Toast.LENGTH_LONG)
+          .show();
+      selectTab(1);
+      return;
+    }
+    if (!Prefs.deepL(this) && !modelsReady) {
       downloadStatus.setText("Unduh model terlebih dahulu.");
       Toast.makeText(this, "Model bahasa belum siap.", Toast.LENGTH_SHORT).show();
       return;
@@ -540,10 +584,19 @@ public class MainActivity extends Activity {
                 + " anti-close. Tidak ada permintaan mematikan penghemat baterai secara paksa.\n\n"
                 + "Tidak ada backend aplikasi, iklan, atau analytics buatan aplikasi. Screenshot"
                 + " dan cache teks sementara di memori. Error terakhir disimpan lokal tanpa"
-                + " screenshot atau riwayat OCR. Model dan diagnostik SDK tunduk pada kebijakan"
-                + " Google.\n\n"
-                + "Terjemahan didukung Google Translate melalui ML Kit. Rich Translate tidak"
-                + " berafiliasi dengan Google.\n\n"
+                + " screenshot atau riwayat OCR. ML Kit menerjemahkan lokal setelah model siap."
+                + " DeepL opsional: teks OCR dikirim ke server DeepL melalui HTTPS, tidak termasuk"
+                + " screenshot. Internet diperlukan; kuota/biaya mengikuti akun API sendiri,"
+                + " termasuk Auto dialog. Tidak ada retry/fallback terjemahan diam-diam. Key"
+                + " tersimpan terenkripsi memakai Android Keystore; hapus melalui Setelan. Key"
+                + " tidak dipulihkan dari backup dan tidak ditampilkan ulang. Perangkat"
+                + " root/terkompromi tetap berisiko. Inggris tujuan DeepL memakai EN-US dan"
+                + " Portugis PT-PT. Uji koneksi hanya GET /v2/usage, bukan mengirim contoh"
+                + " teks.\n\n"
+                + "SDK/model Google tunduk pada kebijakan Google; penggunaan DeepL tunduk pada"
+                + " ketentuan akun dan privasinya: https://www.deepl.com/privacy . Terjemahan ML"
+                + " Kit didukung Google Translate; hasil DeepL ditandai DeepL API. Rich Translate"
+                + " tidak berafiliasi dengan Google atau DeepL.\n\n"
                 + "THIS SERVICE MAY CONTAIN TRANSLATIONS POWERED BY GOOGLE. GOOGLE DISCLAIMS ALL"
                 + " WARRANTIES RELATED TO THE TRANSLATIONS, EXPRESS OR IMPLIED, INCLUDING ANY"
                 + " WARRANTIES OF ACCURACY, RELIABILITY, AND ANY IMPLIED WARRANTIES OF"
@@ -570,6 +623,7 @@ public class MainActivity extends Activity {
 
   @Override
   protected void onPause() {
+    if (providerSettings != null) providerSettings.pause();
     if (registered) {
       unregisterReceiver(stateChanged);
       registered = false;
@@ -579,6 +633,7 @@ public class MainActivity extends Activity {
 
   @Override
   protected void onDestroy() {
+    if (providerSettings != null) providerSettings.close();
     if (downloadEngine != null) downloadEngine.close();
     super.onDestroy();
   }

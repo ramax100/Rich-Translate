@@ -285,7 +285,7 @@ public class RichAccessibilityService extends AccessibilityService {
     stopSession(null);
     try {
       secure = Prefs.get(this).getBoolean("secure", false);
-      translator = new TranslationEngine(Prefs.source(this), Prefs.target(this));
+      translator = TranslationEngine.forContext(this);
       recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
       active = true;
       dimensions();
@@ -445,6 +445,15 @@ public class RichAccessibilityService extends AccessibilityService {
 
   private void beginSelection() {
     if (!active || stage != Stage.BALL) return;
+    if (translator == null) {
+      try {
+        translator = TranslationEngine.forContext(this);
+      } catch (RuntimeException e) {
+        report("Mesin terjemahan tidak dapat dimulai", e);
+        stopSession(null);
+        return;
+      }
+    }
     if (((KeyguardManager) getSystemService(KEYGUARD_SERVICE)).isKeyguardLocked()) {
       stopSession("Layar terkunci.");
       return;
@@ -776,24 +785,22 @@ public class RichAccessibilityService extends AccessibilityService {
                             ? Integer.compare(a.source.left, b.source.left)
                             : Integer.compare(a.source.top, b.source.top));
                 if (automatic && handleAutoOcr(patches, epoch)) return;
-                int[] remaining = {patches.size()};
-                boolean[] failed = {false};
-                for (Patch patch : patches)
-                  translator.translate(
-                      patch.original,
-                      new TranslationEngine.Result() {
-                        public void ok(String translated) {
-                          if (!valid(epoch) || failed[0]) return;
-                          patch.translated = translated;
-                          if (--remaining[0] == 0) translationsReady(patches, epoch);
-                        }
+                List<String> originals = new ArrayList<>();
+                for (Patch patch : patches) originals.add(patch.original);
+                translator.translateBatch(
+                    originals,
+                    new TranslationEngine.BatchResult() {
+                      public void ok(List<String> translations) {
+                        if (!valid(epoch)) return;
+                        for (int i = 0; i < patches.size(); i++)
+                          patches.get(i).translated = translations.get(i);
+                        translationsReady(patches, epoch);
+                      }
 
-                        public void error(String message) {
-                          if (!valid(epoch) || failed[0]) return;
-                          failed[0] = true;
-                          fail(message, null);
-                        }
-                      });
+                      public void error(String message) {
+                        if (valid(epoch)) fail(message, null);
+                      }
+                    });
               })
           .addOnFailureListener(
               e -> {
@@ -815,10 +822,19 @@ public class RichAccessibilityService extends AccessibilityService {
   }
 
   private void addAttribution(List<Patch> patches, List<TranslationCard> strips) {
-    ImageView badge = new ImageView(this);
-    badge.setImageResource(R.drawable.powered_by_google_dark);
-    badge.setScaleType(ImageView.ScaleType.FIT_CENTER);
-    badge.setContentDescription("powered by Google Translate");
+    View badge;
+    if (translator != null && translator.isDeepL()) {
+      TextView label = Ui.bold(this, "DeepL API", 11, Ui.INK);
+      label.setGravity(Gravity.CENTER);
+      label.setContentDescription("Terjemahan melalui DeepL API");
+      badge = label;
+    } else {
+      ImageView image = new ImageView(this);
+      image.setImageResource(R.drawable.powered_by_google_dark);
+      image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+      image.setContentDescription("powered by Google Translate");
+      badge = image;
+    }
 
     int pad = Ui.dp(this, 4);
     badge.setPadding(pad, pad, pad, pad);
@@ -932,6 +948,10 @@ public class RichAccessibilityService extends AccessibilityService {
     if (!active) return;
     generation++;
     cancelAuto();
+    if (translator != null && translator.isDeepL()) {
+      translator.close();
+      translator = null;
+    }
     // Epoch guards cancel stale work. Keep queued bitmap-delivery callbacks so they
     // can recycle their buffers instead of dropping an owned bitmap from the queue.
     clearVisuals();

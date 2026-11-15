@@ -21,6 +21,10 @@ final class Prefs {
     return get(c).getString("target", "id");
   }
 
+  static boolean deepL(Context c) {
+    return "deepl".equals(get(c).getString("translation_provider", "mlkit"));
+  }
+
   /**
    * Remove retired remote settings without touching languages, offline models or Accessibility
    * consent.
