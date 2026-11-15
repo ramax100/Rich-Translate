@@ -13,12 +13,16 @@ final class LassoView extends View {
     void cancel();
   }
 
+  static final int HINT_WIDTH_DP = 196, HINT_HEIGHT_DP = 30, HINT_ALPHA = 200, CANCEL_TOUCH_DP = 44;
+  private static final String HINT = "Lingkari teks • lepas";
   private final Done callback;
   private final GestureTrace trace = new GestureTrace();
   private final Path stroke = new Path();
   private final Paint line = new Paint(Paint.ANTI_ALIAS_FLAG),
       text = new Paint(Paint.ANTI_ALIAS_FLAG);
-  private final RectF label = new RectF();
+  private final RectF label = new RectF(), cancelBounds = new RectF();
+  private final Paint.FontMetrics metrics = new Paint.FontMetrics();
+  private boolean cancelling;
   private final int[] origin = new int[2];
   private final float spacing, strokeWidth;
 
@@ -32,7 +36,7 @@ final class LassoView extends View {
     line.setStrokeWidth(strokeWidth);
     line.setStrokeCap(Paint.Cap.ROUND);
     line.setStrokeJoin(Paint.Join.ROUND);
-    text.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+    text.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
     setFocusable(false);
     setContentDescription("Lingkari teks, lalu lepas. Ketuk × untuk batal.");
     // Default hardware-accelerated window renderer. No software bitmap layer.
@@ -42,8 +46,17 @@ final class LassoView extends View {
   protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
     super.onSizeChanged(width, height, oldWidth, oldHeight);
     updateOrigin();
-    float w = Math.min(Ui.dp(getContext(), 300), width - Ui.dp(getContext(), 24));
-    label.set((width - w) / 2, Ui.dp(getContext(), 20), (width + w) / 2, Ui.dp(getContext(), 68));
+    float w =
+        Math.max(0, Math.min(Ui.dp(getContext(), HINT_WIDTH_DP), width - Ui.dp(getContext(), 24)));
+    float h = Math.min(height, Ui.dp(getContext(), HINT_HEIGHT_DP));
+    float top = Math.max(0, Math.min(Ui.dp(getContext(), 20), height - h));
+    label.set((width - w) / 2, top, (width + w) / 2, top + h);
+    float touchW = Math.min(width, Ui.dp(getContext(), CANCEL_TOUCH_DP));
+    float touchH = Math.min(height, Ui.dp(getContext(), CANCEL_TOUCH_DP));
+    float cx = label.right - Ui.dp(getContext(), 16), cy = label.centerY();
+    float left = Math.max(0, Math.min(width - touchW, cx - touchW / 2));
+    float touchTop = Math.max(0, Math.min(height - touchH, cy - touchH / 2));
+    cancelBounds.set(left, touchTop, left + touchW, touchTop + touchH);
   }
 
   private void updateOrigin() {
@@ -53,19 +66,28 @@ final class LassoView extends View {
   @Override
   protected void onDraw(Canvas canvas) {
     super.onDraw(canvas);
-    text.setColor(0xEFFFFFFF);
+    text.setColor(Color.argb(HINT_ALPHA, 255, 255, 255));
     text.setStyle(Paint.Style.FILL);
-    canvas.drawRoundRect(label, Ui.dp(getContext(), 14), Ui.dp(getContext(), 14), text);
-    text.setColor(Ui.INK);
-    text.setTextSize(Ui.dp(getContext(), 13));
+    canvas.drawRoundRect(label, Ui.dp(getContext(), 10), Ui.dp(getContext(), 10), text);
+    text.setColor(0xDE202333);
+    text.setTextSize(Ui.dp(getContext(), 11));
+    text.getFontMetrics(metrics);
+    float baseline = label.centerY() - (metrics.ascent + metrics.descent) / 2;
+    int save = canvas.save();
+    canvas.clipRect(
+        label.left + Ui.dp(getContext(), 10),
+        label.top,
+        label.right - Ui.dp(getContext(), 34),
+        label.bottom);
+    canvas.drawText(HINT, label.left + Ui.dp(getContext(), 10), baseline, text);
+    canvas.restoreToCount(save);
+    text.setTextSize(Ui.dp(getContext(), 18));
+    text.getFontMetrics(metrics);
     canvas.drawText(
-        "Lingkari teks • lepas jari",
-        label.left + Ui.dp(getContext(), 14),
-        label.top + Ui.dp(getContext(), 29),
+        "×",
+        label.right - Ui.dp(getContext(), 16) - text.measureText("×") / 2,
+        label.centerY() - (metrics.ascent + metrics.descent) / 2,
         text);
-    text.setTextSize(Ui.dp(getContext(), 24));
-    canvas.drawText(
-        "×", label.right - Ui.dp(getContext(), 31), label.top + Ui.dp(getContext(), 30), text);
     canvas.drawPath(stroke, line);
   }
 
@@ -89,13 +111,17 @@ final class LassoView extends View {
   @Override
   public boolean onTouchEvent(MotionEvent event) {
     float x = event.getX(), y = event.getY();
+    if (cancelling && event.getActionMasked() != MotionEvent.ACTION_DOWN) {
+      if (event.getActionMasked() == MotionEvent.ACTION_UP
+          || event.getActionMasked() == MotionEvent.ACTION_CANCEL) cancelling = false;
+      return true;
+    }
     switch (event.getActionMasked()) {
       case MotionEvent.ACTION_DOWN:
         updateOrigin();
-        if (x > label.right - Ui.dp(getContext(), 48)
-            && x < label.right
-            && y > label.top
-            && y < label.bottom) {
+        cancelling = false;
+        if (cancelBounds.contains(x, y)) {
+          cancelling = true;
           performClick();
           callback.cancel();
           return true;

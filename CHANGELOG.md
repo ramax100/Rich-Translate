@@ -1,5 +1,14 @@
 # Catatan perubahan
 
+## 0.12.1
+
+- Banner saat melingkari teks diperkecil dari 300 × 48 dp menjadi 196 × 30 dp (sekitar 59% lebih kecil berdasarkan luas).
+- Petunjuk diringkas menjadi “Lingkari teks • lepas”, font lebih kecil dan latar putih lebih transparan.
+- Ikon × diperkecil, tetapi area sentuh batal tetap 44 × 44 dp.
+- Sentuhan batal tidak bisa ikut terkirim sebagai seleksi saat jari digeser/dilepas.
+- Garis merah, hasil terjemahan, Auto dialog dan DeepL tetap seperti sebelumnya.
+- **Mode streaming tidak diubah**, sesuai permintaan untuk menundanya.
+
 ## 0.12.0
 
 - Pilihan DeepL API dengan key sendiri di Setelan; ML Kit offline tetap bawaan.

@@ -238,7 +238,7 @@ public class MainActivity extends Activity {
     addButton(settingsPanel, about, 48);
     about.setOnClickListener(v -> showHelp());
     gap(settingsPanel, 16);
-    TextView version = Ui.text(this, "Versi 0.12.0 · Android 11+", 11, Ui.MUTED);
+    TextView version = Ui.text(this, "Versi 0.12.1 · Android 11+", 11, Ui.MUTED);
     version.setGravity(Gravity.CENTER);
     settingsPanel.addView(version);
     selectTab(selectedTab);

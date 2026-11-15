@@ -1,6 +1,16 @@
-# Catatan teknis — Rich Translate 0.12.0
+# Catatan teknis — Rich Translate 0.12.1
 
-Android 11+ (API 30+). Package `id.richtranslate`, versionCode **12**, versionName `0.12.0`. Mesin bawaan **Google ML Kit on-device**, ditambah **DeepL API opsional/BYOK**, default Inggris → Indonesia. Debug build pengujian, bukan rilis produksi/Play Store.
+Android 11+ (API 30+). Package `id.richtranslate`, versionCode **13**, versionName `0.12.1`. Mesin bawaan **Google ML Kit on-device**, ditambah **DeepL API opsional/BYOK**, default Inggris → Indonesia. Debug build pengujian, bukan rilis produksi/Play Store.
+
+## Banner pemilihan ringkas — 0.12.1
+
+Yang diperkecil adalah chip petunjuk `LassoView` saat memilih teks, bukan notifikasi sistem Android. Ukuran visual maksimum berubah 300 × 48 dp → 196 × 30 dp; luas berkurang sekitar 59%. Teks menjadi “Lingkari teks • lepas”, font 11 dp (sebelumnya 13 dp), ikon × 18 dp (sebelumnya 24 dp), latar putih alpha 200/255 (sebelumnya 239/255), radius 10 dp. Glyph tetap digambar tajam, tanpa blur, animasi/fade, bitmap screenshot, dimming fullscreen atau surface baru. Ukuran menyesuaikan viewport; hint diclip agar tidak masuk ruang ikon.
+
+Target sentuh × tetap 44 × 44 dp, lebih besar daripada chip visual, dan dijaga dalam batas layar. Pembatalan pada ACTION_DOWN menelan sisa gesture hingga UP/CANCEL agar drag/lepas berikutnya tidak ikut menghasilkan seleksi atau callback batal kedua. Garis seleksi merah dan alur OCR tidak berubah. Instruksi aksesibilitas tetap menyebut melingkari teks, lepas jari dan ×.
+
+**Mode streaming sengaja tidak diubah.** `RichAccessibilityService.java`, pengaturan secure/FLAG_SECURE, DeepL, hasil terjemahan dan Auto dialog identik dengan 0.12.0. MainActivity hanya berganti label versi. Batasan layar hitam/kompatibilitas rekaman sebelumnya masih berlaku; jangan menganggap patch ini perbaikan streaming.
+
+Gambar `images/selection-compact.png` adalah simulasi Canvas/Robolectric untuk meninjau banner, bukan screenshot game atau hasil OCR HP. Belum diuji pada HP fisik.
 
 ## DeepL API — 0.12
 
@@ -69,7 +79,7 @@ Ukuran/posisi hasil adalah perkiraan OCR, bukan deteksi font asli game. Ketebala
 
 ## Instalasi dan penggunaan
 
-1. Hentikan sesi lama, pasang **RichTranslate-0.12.0.apk** sebagai pembaruan Rich Translate versi sebelumnya. Package dan sertifikat sama, versionCode meningkat. Tidak perlu uninstall untuk mempertahankan data.
+1. Hentikan sesi lama, pasang **RichTranslate-0.12.1.apk** sebagai pembaruan Rich Translate versi sebelumnya. Package dan sertifikat sama, versionCode meningkat. Tidak perlu uninstall untuk mempertahankan data.
 2. Buka Rich Translate. Pengaturan server lama dibersihkan otomatis. Pilih pasangan bahasa dan tekan **Siapkan bahasa offline** bila model belum siap. Jika sebelumnya hanya memakai server, model ML Kit mungkin perlu diunduh terlebih dahulu.
 3. Unduhan pertama memerlukan internet; setelah model siap, terjemahan bisa offline. Model terjemahan tidak dibundel dalam APK. Resource OCR Latin dan mesin native dibundel.
 4. Pastikan **Rich Translate • terjemahan layar** aktif di Setelan → Accessibility. Pada Android tertentu, sideload mungkin dibatasi; hanya izinkan setelan terbatas bila memahami dan memercayai APK.
@@ -90,7 +100,7 @@ Belum ada detail HP/Android/game/perekam atau reproduksi perangkat untuk laporan
 
 Build final `assembleDebug testDebugUnitTest lintDebug`: **BUILD SUCCESSFUL**.
 
-- **128 tes lulus**, 0 gagal/error/skipped: 88 tes sebelumnya ditambah 40 tes DeepL (18 API, 9 penyimpanan/migrasi, 3 engine/batch/cache, 7 pengaturan dan 3 integrasi menu/atribusi/pembatalan).
+- **136 tes lulus**, 0 gagal/error/skipped: 128 tes sebelumnya ditambah 8 tes banner ringkas (ukuran/luas, alpha, area lama transparan, target sentuh, pembatalan sekali, seleksi merah, layar sempit, tanpa dimming/software bitmap, instruksi dan render simulasi).
 - Tes auto mencakup stabilisasi/efek ketik, deduplikasi, scene kosong/berulang, pembatalan epoch, persetujuan terpisah, rectangle area, aturan fallback screenshot serta pemisahan flag host hasil dan tombol stop. Pengujian flag bukan uji sentuhan lintas jendela pada HP.
 - Tes bola diperbarui: alpha pusat 102/255, RGB netral, ukuran tetap, pinggir area sentuh transparan, kontras pada latar terang dan gelap.
 - Tes migrasi memastikan pengaturan/kredensial server terhapus, setelan pengguna penting tetap, pembersihan idempotent dan startup layanan ikut membersihkan.
@@ -98,7 +108,7 @@ Build final `assembleDebug testDebugUnitTest lintDebug`: **BUILD SUCCESSFUL**.
 - Android Lint **0 error, 28 warning**. Rincian asli disertakan; warning berupa rekomendasi dependency/UI, lokalisasi string, constructor layout-editor, resource adaptive icon dan commit SharedPreferences sinkron saat menghapus key.
 - APK signature v2 diverifikasi. Sertifikat debug SHA-256 `773b818aea311a87fe553e6df35614f8e1227f88cc0677aa8d8e1c042e49b6e4`.
 - ARM64 + ARM32, minSdk 30, target/compile 34, JNI/DEX dikompresi. Penyimpanan instalasi lebih besar daripada file APK; model terjemahan terpisah.
-- Build final memakai heap Gradle 384 MiB/metaspace 256 MiB, ActiveProcessorCount=2, serta tes 384 MiB/fork per kelas. Pada percobaan awal tes penuh, unduhan artefak SDK31 Robolectric gagal verifikasi karena redirect/respons unduhan bukan artefak. JAR pengganti diverifikasi SHA-512 resmi, lalu seluruh 128 tes diulang dan lulus. Ini masalah dependency lingkungan tes, bukan bukti crash aplikasi di HP.
+- Build final memakai heap Gradle 384 MiB/metaspace 256 MiB, ActiveProcessorCount=2, serta tes 384 MiB/fork per kelas. Artefak SDK uji diverifikasi dengan SHA-512 dan native runtime dengan SHA-1 resmi sebelum digunakan. Pada versi sebelumnya, redirect unduhan sempat menghasilkan respons bukan artefak; pemeriksaan checksum tetap dipertahankan. Build awal patch ini dihentikan saat unduhan dependency lambat, kemudian build/136 tes/lint diulang setelah cache terverifikasi tersedia. Ini masalah dependency lingkungan tes, bukan bukti crash aplikasi di HP.
 
 **Belum diuji di HP fisik, game/rekaman nyata atau OCR/ML Kit end-to-end.** Tes JVM dan render Robolectric tidak membuktikan semua bug hilang. Contoh layout hasil dalam laporan adalah teks/kotak manual, bukan OCR gambar pengguna. Gambar halaman utama dapat menunjukkan SDK model belum tersedia karena lingkungan tes tidak menjalankan inferensi ML Kit.
 

@@ -2,7 +2,7 @@
 
 **Penerjemah teks game dan layar untuk Android 11+.**
 
-[Unduh APK](https://github.com/ramax100/Rich-Translate/releases/tag/v0.12.0) · [Catatan perubahan](CHANGELOG.md) · [Dokumentasi teknis](docs/TECHNICAL_NOTES.md)
+[Unduh APK](https://github.com/ramax100/Rich-Translate/releases/tag/v0.12.1) · [Catatan perubahan](CHANGELOG.md) · [Dokumentasi teknis](docs/TECHNICAL_NOTES.md)
 
 ## Tentang Aplikasi
 
@@ -14,7 +14,7 @@ Bahasa bawaan **Inggris → Indonesia**, mesin bawaan **ML Kit**. Model ML Kit p
 
 - **Bola melayang transparan** untuk memilih teks tanpa berpindah aplikasi.
 - **Auto dialog (opsional)**: lingkari seluruh kotak dialog sekali, lalu terjemahan diperbarui saat teks berubah. Ketuk hasil untuk melanjutkan game; tekan × untuk berhenti.
-- **Seleksi bebas** dengan melingkari tulisan yang ingin diterjemahkan.
+- **Seleksi bebas** dengan garis merah dan petunjuk kecil yang lebih samar saat melingkari teks.
 - **Hasil di posisi teks asli**, dengan latar putih transparan lembut, tepi halus, dan teks tajam. Ukuran huruf mengikuti perkiraan OCR.
 - **ML Kit offline** setelah model bahasa siap, tanpa server penerjemah aplikasi.
 - **DeepL API opsional (BYOK)**: input key sendiri, simpan terenkripsi, uji koneksi/penggunaan, dan hapus key. API Free/Pro dipilih otomatis. Kuota/biaya mengikuti akun DeepL kamu.
