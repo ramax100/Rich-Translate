@@ -210,6 +210,14 @@ public class MainActivity extends Activity {
     LinearLayout preferences = card(settingsPanel);
     preferences.addView(Ui.bold(this, "Preferensi", 17, Ui.INK));
     gap(preferences, 18);
+    toggle(
+        preferences,
+        "Auto dialog",
+        "Pantau kotak pilihan; ketukan diteruskan ke game.",
+        "auto_translate",
+        false,
+        false);
+    gap(preferences, 16);
     toggle(preferences, "Unduh via Wi-Fi", null, "wifi", true, false);
     divider(preferences);
     toggle(preferences, "Mode streaming", "Dapat membuat rekaman hitam.", "secure", false, true);
@@ -218,7 +226,7 @@ public class MainActivity extends Activity {
     addButton(settingsPanel, about, 48);
     about.setOnClickListener(v -> showHelp());
     gap(settingsPanel, 16);
-    TextView version = Ui.text(this, "Versi 0.10.0 · Android 11+", 11, Ui.MUTED);
+    TextView version = Ui.text(this, "Versi 0.11.0 · Android 11+", 11, Ui.MUTED);
     version.setGravity(Gravity.CENTER);
     settingsPanel.addView(version);
     selectTab(selectedTab);
@@ -298,7 +306,37 @@ public class MainActivity extends Activity {
     box.addView(row);
     control.setOnCheckedChangeListener(
         (button, on) -> {
+          if (key.equals("auto_translate") && on) {
+            control.setChecked(false);
+            new AlertDialog.Builder(this)
+                .setTitle("Aktifkan auto dialog?")
+                .setMessage(
+                    "Setelah kamu melingkari seluruh kotak dialog, screenshot dipindai berkala"
+                        + " selama mode otomatis berjalan. OCR dan terjemahan diproses di"
+                        + " perangkat. Metadata jendela dipakai untuk memilih game; hierarki teks"
+                        + " tidak dibaca. Ketukan pada hasil langsung masuk ke game, bukan"
+                        + " menggulir. Android 11–13 atau fallback Android 14+ dapat berkedip"
+                        + " singkat saat hasil disembunyikan untuk scan. Tekan × untuk berhenti;"
+                        + " pilih area lagi jika kotak dialog berpindah. Jangan pilih area yang"
+                        + " berisi data sensitif.")
+                .setNegativeButton("Batal", null)
+                .setPositiveButton(
+                    "Setuju, aktifkan",
+                    (dialog, which) -> {
+                      Prefs.get(this).edit().putBoolean(key, true).apply();
+                      control.setOnCheckedChangeListener(null);
+                      control.setChecked(true);
+                      build();
+                      selectTab(1);
+                    })
+                .show();
+            return;
+          }
           Prefs.get(this).edit().putBoolean(key, on).apply();
+          if (key.equals("auto_translate") && !on) {
+            RichAccessibilityService service = RichAccessibilityService.connectedService();
+            if (service != null) service.disableAuto();
+          }
           if (warn && on)
             new AlertDialog.Builder(this)
                 .setTitle("Uji sebelum streaming")
@@ -425,7 +463,10 @@ public class MainActivity extends Activity {
                 + " diagnostik.\n\n"
                 + "Layanan tidak membaca hierarki teks aplikasi, tidak menekan tombol, tidak"
                 + " melakukan gestur otomatis, dan tidak bermain untukmu. Screenshot diminta"
-                + " setelah kamu selesai melingkari teks.\n\n"
+                + " setelah kamu selesai melingkari teks. Jika Auto dialog diaktifkan terpisah,"
+                + " screenshot dipindai berkala sampai ×, berhenti, layar terkunci, atau jendela"
+                + " berubah. Metadata jendela dipakai untuk memilih game, tanpa membaca hierarki"
+                + " teks.\n\n"
                 + "Aktifkan hanya jika kamu menyetujui akses ini. Kamu dapat menghentikan"
                 + " penerjemah kapan saja dan mematikan layanan di setelan Accessibility.")
         .setNegativeButton("Batal", null)
@@ -486,7 +527,11 @@ public class MainActivity extends Activity {
                 + " otomatis.\n\n"
                 + "Cara pakai: ketuk bola, lingkari teks, lalu lepas jari. Geser bola untuk pindah;"
                 + " tekan lama untuk berhenti. Geser strip putih untuk hasil panjang. Tekan × untuk"
-                + " kembali bermain.\n\n"
+                + " kembali bermain. Auto dialog: aktifkan di Setelan, lingkari seluruh kotak"
+                + " dialog (bukan hanya kalimat pertama), lalu tap hasil untuk melanjutkan game."
+                + " Scroll hasil tidak tersedia selama auto. × menghentikan pemantauan. Android"
+                + " 11–13/fallback dapat berkedip singkat; kotak yang pindah perlu dipilih"
+                + " ulang.\n\n"
                 + "Game yang melindungi screenshot tidak didukung. Hasil memakai latar putih"
                 + " transparan lembut dan teks hitam, bukan inpainting AI. Ukuran dan posisi"
                 + " mengikuti perkiraan OCR. Hanya tombol × muncul bersama hasil.\n\n"

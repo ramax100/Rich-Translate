@@ -1,5 +1,16 @@
 # Catatan perubahan
 
+## 0.11.0
+
+- Auto dialog opsional di Setelan dengan persetujuan pemindaian berkala terpisah.
+- Lingkari seluruh kotak dialog sekali; area tersebut dipantau saat percakapan berganti.
+- Dua hasil OCR yang sama diperlukan sebelum terjemahan; teks yang sama tidak diterjemahkan ulang.
+- Hasil terjemahan diperiksa ulang terhadap sumber sebelum ditampilkan; hasil lama dibersihkan saat perubahan terdeteksi atau dua scan kosong.
+- Ketukan hasil diteruskan ke game; × tetap dapat disentuh untuk menghentikan auto. Scroll hanya di mode manual.
+- Android 14+ mencoba screenshot jendela game tanpa isi overlay; Android 11–13/fallback menyembunyikan hasil sesaat saat scan.
+- Pemindaian serial, timeout dan pembatalan saat berhenti, kunci layar, perubahan jendela atau rotasi.
+- Metadata jendela dipakai untuk memilih target; tidak membaca node/hierarki teks atau melakukan gestur otomatis.
+
 ## 0.10.0
 
 - Latar hasil menjadi putih sedikit transparan dengan sudut membulat dan tepi lembut.

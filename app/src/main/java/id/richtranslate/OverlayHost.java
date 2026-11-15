@@ -39,6 +39,11 @@ final class OverlayHost extends FrameLayout {
     closeButton.setOnClickListener(v -> close.run());
   }
 
+  void clearResults() {
+    resultLayer.removeAllViews();
+    committed = false;
+  }
+
   /** Children are prepared first, then attached within one UI traversal. Never cancels pre-draw. */
   void commit(List<TranslationCard> strips, View attribution, Rect badgeBounds) {
     if (committed) return;

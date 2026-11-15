@@ -37,13 +37,15 @@ public class OverlayUiTest {
   }
 
   @Test
-  public void accessibilityDoesNotRequestTextTreeOrGestures() throws Exception {
+  @Config(sdk={30,31,34})
+  public void accessibilityRequestsWindowMetadataButNoGestures() throws Exception {
     android.content.res.XmlResourceParser xml =
         context.getResources().getXml(R.xml.accessibility_service);
     while (xml.next() != org.xmlpull.v1.XmlPullParser.START_TAG) {}
     String ns = "http://schemas.android.com/apk/res/android";
     assertTrue(xml.getAttributeBooleanValue(ns, "canTakeScreenshot", false));
-    assertFalse(xml.getAttributeBooleanValue(ns, "canRetrieveWindowContent", true));
+    assertTrue(xml.getAttributeBooleanValue(ns, "canRetrieveWindowContent", false));
+    assertNotNull(xml.getAttributeValue(ns, "accessibilityFlags"));
     assertFalse(xml.getAttributeBooleanValue(ns, "canPerformGestures", true));
     xml.close();
   }

@@ -2,7 +2,7 @@
 
 **Penerjemah teks game dan layar untuk Android 11+.**
 
-[Unduh APK](https://github.com/ramax100/Rich-Translate/releases/tag/v0.10.0) · [Catatan perubahan](CHANGELOG.md) · [Dokumentasi teknis](docs/TECHNICAL_NOTES.md)
+[Unduh APK](https://github.com/ramax100/Rich-Translate/releases/tag/v0.11.0) · [Catatan perubahan](CHANGELOG.md) · [Dokumentasi teknis](docs/TECHNICAL_NOTES.md)
 
 ## Tentang Aplikasi
 
@@ -13,12 +13,15 @@ Bahasa bawaan **Inggris → Indonesia**. Model bahasa perlu diunduh sekali; sete
 ## Fitur Utama
 
 - **Bola melayang transparan** untuk memilih teks tanpa berpindah aplikasi.
+- **Auto dialog (opsional)**: lingkari seluruh kotak dialog sekali, lalu terjemahan diperbarui saat teks berubah. Ketuk hasil untuk melanjutkan game; tekan × untuk berhenti.
 - **Seleksi bebas** dengan melingkari tulisan yang ingin diterjemahkan.
 - **Hasil di posisi teks asli**, dengan latar putih transparan lembut, tepi halus, dan teks tajam. Ukuran huruf mengikuti perkiraan OCR.
 - **Terjemahan offline** setelah model bahasa siap, tanpa server penerjemah aplikasi.
 - **Menu sederhana** untuk bahasa, model offline, akses layar, dan pengaturan.
 
 Latar lembut ini adalah lapisan putih transparan, **bukan blur asli pada gambar game**. Teks terjemahan tidak ikut diburamkan.
+
+Auto dialog diaktifkan lewat **Setelan → Auto dialog** dengan persetujuan terpisah. Pilihan lasso menjadi kotak pantauan, bukan deteksi seluruh layar. Teks harus sama pada dua scan sebelum diterjemahkan, sehingga ada jeda. Android 11–13 dan fallback Android 14+ menyembunyikan hasil sesaat saat scan (dapat berkedip). Android 14+ mencoba screenshot jendela tanpa overlay; jika ukuran jendela tidak cocok, digunakan fallback. Hasil tidak bisa digulir selama auto. Pilih ulang jika posisi kotak dialog berubah.
 
 > OCR yang dibundel mendukung tulisan Latin. Hasil terjemahan dan penempatannya dapat kurang tepat. Layar yang dilindungi dari screenshot tidak didukung. APK saat ini adalah debug build pengujian; belum diuji pada HP fisik. Batasan rekaman/streaming dijelaskan di [dokumentasi teknis](docs/TECHNICAL_NOTES.md).
 
@@ -46,6 +49,7 @@ Komponen utama dalam `java/id/richtranslate/`:
 | --- | --- |
 | `MainActivity.java` | Menu utama dan pengaturan |
 | `RichAccessibilityService.java` | Screenshot, alur OCR, dan overlay |
+| `AutoTextTracker.java` / `AutoCapturePolicy.java` | Stabilisasi teks, batas area dan kebijakan capture otomatis |
 | `TranslationEngine.java` | Terjemahan offline melalui ML Kit |
 | `FloatingBallView.java` / `LassoView.java` | Bola melayang dan seleksi teks |
 | `OverlayHost.java` | Wadah tampilan proses dan hasil |

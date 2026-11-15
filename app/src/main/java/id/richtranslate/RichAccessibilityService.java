@@ -9,13 +9,14 @@ import android.hardware.HardwareBuffer;
 import android.os.*;
 import android.view.*;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.*;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.*;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 import java.util.*;
 
-/** Explicitly user-triggered screenshot + OCR. No gestures and no node-tree access. */
+/** User-selected screenshot + OCR, optionally monitored. No gestures or node-tree reads. */
 public class RichAccessibilityService extends AccessibilityService {
   static final String STATE_CHANGED = "id.richtranslate.STATE_CHANGED";
   private static volatile java.lang.ref.WeakReference<RichAccessibilityService> connection =
@@ -50,6 +51,155 @@ public class RichAccessibilityService extends AccessibilityService {
   private int width, height;
   private volatile int generation;
   private long lastScreenshotAt;
+  private boolean automatic, autoBusy, hiddenForCapture, windowCaptureDisabled;
+  private View autoClose;
+  private List<float[]> monitoredArea;
+  private final AutoTextTracker autoTracker = new AutoTextTracker();
+  private List<Patch> pendingPatches;
+  private String pendingText = "";
+  private int targetWindow = -1;
+  private int autoCycle;
+  private Runnable nextScan, jobTimeout;
+
+  void disableAuto() {
+    if (automatic && active) resetToBall();
+  }
+
+  private void cancelAuto() {
+    if (nextScan != null) main.removeCallbacks(nextScan);
+    if (jobTimeout != null) main.removeCallbacks(jobTimeout);
+    nextScan = jobTimeout = null;
+    automatic = autoBusy = false;
+    hiddenForCapture = false;
+    monitoredArea = null;
+    pendingPatches = null;
+    pendingText = "";
+    targetWindow = -1;
+    autoTracker.reset();
+  }
+
+  private int focusedApplicationWindow() {
+    List<AccessibilityWindowInfo> windows = getWindows();
+    try {
+      for (AccessibilityWindowInfo window : windows)
+        if (window.getType() == AccessibilityWindowInfo.TYPE_APPLICATION && window.isFocused())
+          return window.getId();
+      return -1;
+    } finally {
+      for (AccessibilityWindowInfo window : windows) window.recycle();
+    }
+  }
+
+  private void scheduleAuto() {
+    if (!automatic || !active) return;
+    autoBusy = false;
+    if (jobTimeout != null) main.removeCallbacks(jobTimeout);
+    final int epoch = generation;
+    if (nextScan != null) main.removeCallbacks(nextScan);
+    nextScan =
+        () -> {
+          if (valid(epoch) && automatic) beginAutoScan();
+        };
+    main.postDelayed(nextScan, AutoCapturePolicy.SCAN_DELAY_MS);
+  }
+
+  private void beginAutoScan() {
+    if (!automatic || autoBusy || !active) return;
+    if (((KeyguardManager) getSystemService(KEYGUARD_SERVICE)).isKeyguardLocked()) {
+      stopSession("Layar terkunci.");
+      return;
+    }
+    int focused = focusedApplicationWindow();
+    if (focused < 0 || focused != targetWindow) {
+      fail("Jendela game berubah. Pilih kembali area dialog.", null);
+      return;
+    }
+    autoBusy = true;
+    final int epoch = ++generation, cycle = ++autoCycle;
+    stage = Stage.PROCESSING;
+    jobTimeout =
+        () -> {
+          if (valid(epoch) && automatic && autoBusy && cycle == autoCycle)
+            fail("Pemindaian otomatis terlalu lama. Periksa model lalu pilih area kembali.", null);
+        };
+    main.postDelayed(jobTimeout, AutoCapturePolicy.JOB_TIMEOUT_MS);
+    boolean windowCapture =
+        AutoCapturePolicy.useWindowCapture(Build.VERSION.SDK_INT, targetWindow)
+            && !windowCaptureDisabled;
+    if (windowCapture) requestScreenshot(epoch, 0, monitoredArea);
+    else {
+      if (overlay != null) overlay.setVisibility(View.INVISIBLE);
+      if (autoClose != null) autoClose.setVisibility(View.INVISIBLE);
+      hiddenForCapture = true;
+      main.postDelayed(
+          () -> {
+            if (valid(epoch) && automatic) requestScreenshot(epoch, 0, monitoredArea);
+          },
+          AutoCapturePolicy.HIDE_SETTLE_MS);
+      // Never leave the user's stop control hidden while waiting for a broken capture.
+      main.postDelayed(
+          () -> {
+            if (valid(epoch) && hiddenForCapture)
+              fail("Screenshot terlalu lama. Mode otomatis dijeda untuk menjaga tampilan.", null);
+          },
+          AutoCapturePolicy.HIDE_DEADLINE_MS);
+    }
+  }
+
+  private void restoreAutoOverlay() {
+    hiddenForCapture = false;
+    if (overlay != null) overlay.setVisibility(View.VISIBLE);
+    if (autoClose != null) autoClose.setVisibility(View.VISIBLE);
+  }
+
+  private String signature(List<Patch> patches) {
+    StringBuilder value = new StringBuilder();
+    for (Patch patch : patches) {
+      if (value.length() > 0) value.append(' ');
+      value.append(patch.original);
+    }
+    return AutoTextTracker.normalize(value.toString());
+  }
+
+  private boolean handleAutoOcr(List<Patch> patches, int epoch) {
+    String text = signature(patches);
+    AutoTextTracker.Decision decision = autoTracker.observe(text);
+    if (decision.clearOld && overlay != null) overlay.clearResults();
+    if (pendingPatches != null) {
+      boolean matches = text.equals(pendingText) && patches.size() == pendingPatches.size();
+      for (int i = 0; matches && i < patches.size(); i++)
+        matches =
+            AutoTextTracker.normalize(patches.get(i).original)
+                .equals(AutoTextTracker.normalize(pendingPatches.get(i).original));
+      if (matches && autoTracker.markDisplayed(text)) {
+        for (int i = 0; i < patches.size(); i++)
+          patches.get(i).translated = pendingPatches.get(i).translated;
+        pendingPatches = null;
+        pendingText = "";
+        render(patches, epoch);
+        scheduleAuto();
+        return true;
+      }
+      pendingPatches = null;
+      pendingText = "";
+    }
+    if (!decision.translate) {
+      scheduleAuto();
+      return true;
+    }
+    return false;
+  }
+
+  private void translationsReady(List<Patch> patches, int epoch) {
+    if (!automatic) {
+      render(patches, epoch);
+      return;
+    }
+    pendingPatches = patches;
+    pendingText = signature(patches);
+    scheduleAuto();
+  }
+
   private final BroadcastReceiver screenOff =
       new BroadcastReceiver() {
         @Override
@@ -97,7 +247,16 @@ public class RichAccessibilityService extends AccessibilityService {
 
   @Override
   public void onAccessibilityEvent(AccessibilityEvent event) {
-    /* Deliberately do not read nodes. */
+    // Window state only. Never call event.getSource(), getRoot() or read text nodes.
+    if (!automatic || !active || targetWindow < 0) return;
+    final int target = targetWindow;
+    main.postDelayed(
+        () -> {
+          if (!automatic || !active || targetWindow != target) return;
+          int focused = focusedApplicationWindow();
+          if (focused >= 0 && focused != target) resetToBall();
+        },
+        150);
   }
 
   @Override
@@ -141,6 +300,7 @@ public class RichAccessibilityService extends AccessibilityService {
 
   void stopSession(String message) {
     generation++;
+    cancelAuto();
     active = false;
     stage = Stage.IDLE;
     // Epoch guards cancel stale work. Keep queued bitmap-delivery callbacks so they
@@ -289,6 +449,8 @@ public class RichAccessibilityService extends AccessibilityService {
       stopSession("Layar terkunci.");
       return;
     }
+    automatic = Prefs.get(this).getBoolean("auto_translate", false);
+    windowCaptureDisabled = false;
     final int epoch = ++generation;
     stage = Stage.SELECTING;
     remove(ball);
@@ -304,6 +466,19 @@ public class RichAccessibilityService extends AccessibilityService {
                 stage = Stage.PROCESSING;
                 // Capture only once the live lasso is gone. No frozen screenshot is painted
                 // over a running game and the game never loses keyboard/window focus.
+                if (automatic) {
+                  try {
+                    monitoredArea = AutoCapturePolicy.rectangle(screenPoints, width, height);
+                    targetWindow = focusedApplicationWindow();
+                    if (targetWindow < 0)
+                      throw new IllegalStateException("Jendela game tidak ditemukan");
+                    showClose();
+                    beginAutoScan();
+                  } catch (RuntimeException e) {
+                    fail("Area otomatis tidak dapat dimulai", e);
+                  }
+                  return;
+                }
                 long delay = Math.max(120, 450 - (SystemClock.uptimeMillis() - lastScreenshotAt));
                 screenshotPending = true;
                 main.postDelayed(() -> requestScreenshot(epoch, 0, screenPoints), delay);
@@ -327,15 +502,31 @@ public class RichAccessibilityService extends AccessibilityService {
     final int requestId = ++screenshotRequest;
     final int captureScreenWidth = width, captureScreenHeight = height;
     try {
-      takeScreenshot(
-          Display.DEFAULT_DISPLAY,
-          getMainExecutor(),
+      final boolean windowCapture =
+          automatic
+              && !windowCaptureDisabled
+              && AutoCapturePolicy.useWindowCapture(Build.VERSION.SDK_INT, targetWindow);
+      TakeScreenshotCallback callback =
           new TakeScreenshotCallback() {
             public void onSuccess(ScreenshotResult result) {
               if (!valid(epoch) || requestId != screenshotRequest) {
                 result.getHardwareBuffer().close();
                 return;
               }
+              if (windowCapture
+                  && !AutoCapturePolicy.windowSizeMatches(
+                      result.getHardwareBuffer().getWidth(),
+                      result.getHardwareBuffer().getHeight(),
+                      width,
+                      height)) {
+                result.getHardwareBuffer().close();
+                screenshotPending = false;
+                windowCaptureDisabled = true;
+                restoreAutoOverlay();
+                scheduleAuto();
+                return;
+              }
+              restoreAutoOverlay();
               try {
                 showClose();
                 screenshotWorker.execute(
@@ -351,6 +542,18 @@ public class RichAccessibilityService extends AccessibilityService {
             public void onFailure(int error) {
               if (!valid(epoch) || requestId != screenshotRequest) return;
               screenshotPending = false;
+              restoreAutoOverlay();
+              if (windowCapture
+                  && error != 6
+                  && error != ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS) {
+                windowCaptureDisabled = true;
+                scheduleAuto();
+                return;
+              }
+              if (automatic && error == ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) {
+                scheduleAuto();
+                return;
+              }
               if (error == ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT && retry == 0) {
                 main.postDelayed(() -> requestScreenshot(epoch, 1, screenPoints), 500);
                 return;
@@ -364,7 +567,10 @@ public class RichAccessibilityService extends AccessibilityService {
                           : "Screenshot Accessibility gagal (kode " + error + ").";
               fail(message, null);
             }
-          });
+          };
+      if (Build.VERSION.SDK_INT >= 34 && windowCapture)
+        takeScreenshotOfWindow(targetWindow, getMainExecutor(), callback);
+      else takeScreenshot(Display.DEFAULT_DISPLAY, getMainExecutor(), callback);
       main.postDelayed(
           () -> {
             if (valid(epoch) && requestId == screenshotRequest && screenshotPending)
@@ -549,6 +755,10 @@ public class RichAccessibilityService extends AccessibilityService {
                   }
                 }
                 if (patches.isEmpty()) {
+                  if (automatic) {
+                    handleAutoOcr(patches, epoch);
+                    return;
+                  }
                   fail(
                       "Teks tidak terbaca. Coba lingkari lebih longgar atau pilih tulisan yang"
                           + " lebih jelas.",
@@ -565,6 +775,7 @@ public class RichAccessibilityService extends AccessibilityService {
                         a.source.top == b.source.top
                             ? Integer.compare(a.source.left, b.source.left)
                             : Integer.compare(a.source.top, b.source.top));
+                if (automatic && handleAutoOcr(patches, epoch)) return;
                 int[] remaining = {patches.size()};
                 boolean[] failed = {false};
                 for (Patch patch : patches)
@@ -574,7 +785,7 @@ public class RichAccessibilityService extends AccessibilityService {
                         public void ok(String translated) {
                           if (!valid(epoch) || failed[0]) return;
                           patch.translated = translated;
-                          if (--remaining[0] == 0) render(patches, epoch);
+                          if (--remaining[0] == 0) translationsReady(patches, epoch);
                         }
 
                         public void error(String message) {
@@ -677,13 +888,50 @@ public class RichAccessibilityService extends AccessibilityService {
   private void showClose() {
     if (overlay != null) return;
     OverlayHost host = new OverlayHost(this, width, height, this::resetToBall);
-    wm.addView(host, params(width, height, false));
+    WindowManager.LayoutParams hostParams = params(width, height, false);
+    hostParams.flags = AutoCapturePolicy.flags(hostParams.flags, automatic);
+    if (automatic) {
+      host.closeButton.setVisibility(View.GONE);
+      host.setClickable(false);
+    }
+    wm.addView(host, hostParams);
     overlay = host;
+    if (automatic) {
+      TextView close = Ui.bold(this, "×", 26, Ui.INK);
+      close.setGravity(Gravity.CENTER);
+      close.setBackground(Ui.shape(Color.WHITE, 100, this));
+      close.setContentDescription("Hentikan otomatis dan kembali ke bola");
+      close.setOnClickListener(v -> resetToBall());
+      int size = Ui.dp(this, 44), margin = Ui.dp(this, 8);
+      int[][] corners = {
+        {width - size - margin, Ui.dp(this, 32)},
+        {margin, Ui.dp(this, 32)},
+        {width - size - margin, height - size - margin},
+        {margin, height - size - margin}
+      };
+      WindowManager.LayoutParams cp = params(size, size, false);
+      boolean placed = false;
+      for (int[] corner : corners) {
+        Rect b = new Rect(corner[0], corner[1], corner[0] + size, corner[1] + size);
+        if (monitoredArea == null || !AutoCapturePolicy.controlOverlaps(monitoredArea, b)) {
+          cp.x = corner[0];
+          cp.y = corner[1];
+          placed = true;
+          break;
+        }
+      }
+      if (!placed)
+        throw new IllegalArgumentException(
+            "Sisakan sudut layar di luar area dialog untuk tombol ×");
+      wm.addView(close, cp);
+      autoClose = close;
+    }
   }
 
   private void resetToBall() {
     if (!active) return;
     generation++;
+    cancelAuto();
     // Epoch guards cancel stale work. Keep queued bitmap-delivery callbacks so they
     // can recycle their buffers instead of dropping an owned bitmap from the queue.
     clearVisuals();
@@ -717,6 +965,8 @@ public class RichAccessibilityService extends AccessibilityService {
   }
 
   private void clearVisuals() {
+    remove(autoClose);
+    autoClose = null;
     remove(selector);
     selector = null;
     remove(ball);
