@@ -35,15 +35,21 @@ final class AutoTextTracker {
       return new Decision(false, clear);
     }
     emptyFrames = 0;
-    if (text.equals(shown)) return new Decision(false, false);
-    boolean clear = !shown.isEmpty();
-    if (clear) shown = "";
+    if (text.equals(shown)) {
+      candidate = text;
+      repetitions = 2;
+      return new Decision(false, false);
+    }
     if (text.equals(candidate)) repetitions = Math.min(2, repetitions + 1);
     else {
       candidate = text;
       repetitions = 1;
     }
-    return new Decision(repetitions >= 2, clear);
+    // A single noisy OCR frame must not erase an otherwise unchanged result.
+    boolean stable = repetitions >= 2;
+    boolean clear = stable && !shown.isEmpty();
+    if (clear) shown = "";
+    return new Decision(stable, clear);
   }
 
   boolean markDisplayed(String value) {

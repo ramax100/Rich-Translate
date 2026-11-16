@@ -36,9 +36,11 @@ public class AutoTextTrackerTest {
     t.observe("One");
     t.markDisplayed("One");
     AutoTextTracker.Decision d = t.observe("Two");
-    assertTrue(d.clearOld);
+    assertFalse(d.clearOld);
     assertFalse(d.translate);
-    assertTrue(t.observe("Two").translate);
+    AutoTextTracker.Decision stable = t.observe("Two");
+    assertTrue(stable.translate);
+    assertTrue(stable.clearOld);
   }
 
   @Test
@@ -93,5 +95,40 @@ public class AutoTextTrackerTest {
     t.reset();
     assertFalse(t.observe("One").translate);
     assertTrue(t.observe("One").translate);
+  }
+
+  @Test
+  public void oneNoisyFrameNeverRemovesUnchangedResult() {
+    AutoTextTracker t = new AutoTextTracker();
+    t.observe("Hello");
+    t.observe("Hello");
+    t.markDisplayed("Hello");
+    assertFalse(t.observe("He1lo").clearOld);
+    assertFalse(t.observe("Hello").translate);
+    assertFalse(t.observe("Hello").clearOld);
+  }
+
+  @Test
+  public void separatedMisreadsCannotAccumulateAsTwoStableFrames() {
+    AutoTextTracker t = new AutoTextTracker();
+    t.observe("Hello");
+    t.observe("Hello");
+    t.markDisplayed("Hello");
+    t.observe("He1lo");
+    t.observe("Hello");
+    AutoTextTracker.Decision d = t.observe("He1lo");
+    assertFalse(d.clearOld);
+    assertFalse(d.translate);
+  }
+
+  @Test
+  public void oneBlankFrameThenOriginalKeepsShownText() {
+    AutoTextTracker t = new AutoTextTracker();
+    t.observe("Hello");
+    t.observe("Hello");
+    t.markDisplayed("Hello");
+    assertFalse(t.observe("").clearOld);
+    assertFalse(t.observe("Hello").translate);
+    assertFalse(t.observe("").clearOld);
   }
 }

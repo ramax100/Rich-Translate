@@ -238,7 +238,7 @@ public class MainActivity extends Activity {
     addButton(settingsPanel, about, 48);
     about.setOnClickListener(v -> showHelp());
     gap(settingsPanel, 16);
-    TextView version = Ui.text(this, "Versi 0.12.1 · Android 11+", 11, Ui.MUTED);
+    TextView version = Ui.text(this, "Versi 0.12.2 · Android 11+", 11, Ui.MUTED);
     version.setGravity(Gravity.CENTER);
     settingsPanel.addView(version);
     selectTab(selectedTab);
@@ -328,10 +328,11 @@ public class MainActivity extends Activity {
                         + " mesin pilihan: ML Kit lokal; DeepL mengirim teks ke server dan memakai"
                         + " kuota akun. Metadata jendela dipakai untuk memilih game; hierarki teks"
                         + " tidak dibaca. Ketukan pada hasil langsung masuk ke game, bukan"
-                        + " menggulir. Android 11–13 atau fallback Android 14+ dapat berkedip"
-                        + " singkat saat hasil disembunyikan untuk scan. Tekan × untuk berhenti;"
-                        + " pilih area lagi jika kotak dialog berpindah. Jangan pilih area yang"
-                        + " berisi data sensitif.")
+                        + " menggulir. Android 11–13 dapat berkedip singkat saat hasil"
+                        + " disembunyikan untuk scan. Android 14+ memakai screenshot jendela tanpa"
+                        + " menyembunyikan hasil; jika tidak didukung, auto dihentikan setelah"
+                        + " percobaan terbatas. Tekan × untuk berhenti; pilih area lagi jika kotak"
+                        + " dialog berpindah. Jangan pilih area yang berisi data sensitif.")
                 .setNegativeButton("Batal", null)
                 .setPositiveButton(
                     "Setuju, aktifkan",
@@ -574,8 +575,9 @@ public class MainActivity extends Activity {
                 + " kembali bermain. Auto dialog: aktifkan di Setelan, lingkari seluruh kotak"
                 + " dialog (bukan hanya kalimat pertama), lalu tap hasil untuk melanjutkan game."
                 + " Scroll hasil tidak tersedia selama auto. × menghentikan pemantauan. Android"
-                + " 11–13/fallback dapat berkedip singkat; kotak yang pindah perlu dipilih"
-                + " ulang.\n\n"
+                + " 11–13 dapat berkedip singkat. Android 14+ tidak menyembunyikan hasil saat scan;"
+                + " jika screenshot jendela tidak didukung, auto dihentikan setelah percobaan"
+                + " terbatas. Kotak yang pindah perlu dipilih ulang.\n\n"
                 + "Game yang melindungi screenshot tidak didukung. Hasil memakai latar putih"
                 + " transparan lembut dan teks hitam, bukan inpainting AI. Ukuran dan posisi"
                 + " mengikuti perkiraan OCR. Hanya tombol × muncul bersama hasil.\n\n"

@@ -16,9 +16,16 @@ final class AutoCapturePolicy {
     return sdk >= 34 && windowId >= 0;
   }
 
-  static boolean windowSizeMatches(
-      int screenshotWidth, int screenshotHeight, int displayWidth, int displayHeight) {
-    return screenshotWidth == displayWidth && screenshotHeight == displayHeight;
+  static boolean hideOverlayForCapture(int sdk, boolean automatic) {
+    return automatic && sdk < 34;
+  }
+
+  static boolean canRetryWindowCapture(int failures) {
+    return failures < 3;
+  }
+
+  static long windowRetryDelay(int failures) {
+    return SCAN_DELAY_MS * Math.min(3, Math.max(1, failures));
   }
 
   static int flags(int base, boolean automatic) {

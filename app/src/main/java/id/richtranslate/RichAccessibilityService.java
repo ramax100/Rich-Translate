@@ -51,14 +51,14 @@ public class RichAccessibilityService extends AccessibilityService {
   private int width, height;
   private volatile int generation;
   private long lastScreenshotAt;
-  private boolean automatic, autoBusy, hiddenForCapture, windowCaptureDisabled;
+  private boolean automatic, autoBusy, hiddenForCapture;
   private View autoClose;
   private List<float[]> monitoredArea;
   private final AutoTextTracker autoTracker = new AutoTextTracker();
   private List<Patch> pendingPatches;
   private String pendingText = "";
   private int targetWindow = -1;
-  private int autoCycle;
+  private int autoCycle, windowCaptureFailures;
   private Runnable nextScan, jobTimeout;
 
   void disableAuto() {
@@ -75,10 +75,11 @@ public class RichAccessibilityService extends AccessibilityService {
     pendingPatches = null;
     pendingText = "";
     targetWindow = -1;
+    windowCaptureFailures = 0;
     autoTracker.reset();
   }
 
-  private int focusedApplicationWindow() {
+  int focusedApplicationWindow() {
     List<AccessibilityWindowInfo> windows = getWindows();
     try {
       for (AccessibilityWindowInfo window : windows)
@@ -90,7 +91,50 @@ public class RichAccessibilityService extends AccessibilityService {
     }
   }
 
+  Rect applicationWindowBounds(int id) {
+    List<AccessibilityWindowInfo> windows = getWindows();
+    try {
+      for (AccessibilityWindowInfo window : windows)
+        if (window.getId() == id && window.getType() == AccessibilityWindowInfo.TYPE_APPLICATION) {
+          Rect bounds = new Rect();
+          window.getBoundsInScreen(bounds);
+          return bounds;
+        }
+      return null;
+    } finally {
+      for (AccessibilityWindowInfo window : windows) window.recycle();
+    }
+  }
+
+  void captureWindow(int windowId, TakeScreenshotCallback callback) {
+    if (Build.VERSION.SDK_INT >= 34) takeScreenshotOfWindow(windowId, getMainExecutor(), callback);
+    else throw new UnsupportedOperationException("Screenshot jendela memerlukan Android 14+");
+  }
+
+  void captureDisplay(TakeScreenshotCallback callback) {
+    takeScreenshot(Display.DEFAULT_DISPLAY, getMainExecutor(), callback);
+  }
+
+  private void windowCaptureFailed(int epoch, String message) {
+    if (!valid(epoch) || !automatic) return;
+    screenshotPending = false;
+    generation++; // Cancel conversion/OCR deliveries already queued for this failed scan.
+    screenshotRequest++; // Invalidate late results, including a timed-out API34 callback.
+    if (AutoCapturePolicy.canRetryWindowCapture(++windowCaptureFailures)) {
+      scheduleAuto(AutoCapturePolicy.windowRetryDelay(windowCaptureFailures));
+    } else
+      fail(
+          message
+              + " Auto dihentikan, bukan beralih ke scan yang menyembunyikan hasil. Gunakan mode"
+              + " manual atau pilih area kembali.",
+          null);
+  }
+
   private void scheduleAuto() {
+    scheduleAuto(AutoCapturePolicy.SCAN_DELAY_MS);
+  }
+
+  private void scheduleAuto(long delay) {
     if (!automatic || !active) return;
     autoBusy = false;
     if (jobTimeout != null) main.removeCallbacks(jobTimeout);
@@ -100,7 +144,7 @@ public class RichAccessibilityService extends AccessibilityService {
         () -> {
           if (valid(epoch) && automatic) beginAutoScan();
         };
-    main.postDelayed(nextScan, AutoCapturePolicy.SCAN_DELAY_MS);
+    main.postDelayed(nextScan, delay);
   }
 
   private void beginAutoScan() {
@@ -123,10 +167,8 @@ public class RichAccessibilityService extends AccessibilityService {
             fail("Pemindaian otomatis terlalu lama. Periksa model lalu pilih area kembali.", null);
         };
     main.postDelayed(jobTimeout, AutoCapturePolicy.JOB_TIMEOUT_MS);
-    boolean windowCapture =
-        AutoCapturePolicy.useWindowCapture(Build.VERSION.SDK_INT, targetWindow)
-            && !windowCaptureDisabled;
-    if (windowCapture) requestScreenshot(epoch, 0, monitoredArea);
+    if (!AutoCapturePolicy.hideOverlayForCapture(Build.VERSION.SDK_INT, automatic))
+      requestScreenshot(epoch, 0, monitoredArea);
     else {
       if (overlay != null) overlay.setVisibility(View.INVISIBLE);
       if (autoClose != null) autoClose.setVisibility(View.INVISIBLE);
@@ -459,7 +501,7 @@ public class RichAccessibilityService extends AccessibilityService {
       return;
     }
     automatic = Prefs.get(this).getBoolean("auto_translate", false);
-    windowCaptureDisabled = false;
+    windowCaptureFailures = 0;
     final int epoch = ++generation;
     stage = Stage.SELECTING;
     remove(ball);
@@ -510,11 +552,23 @@ public class RichAccessibilityService extends AccessibilityService {
     screenshotPending = true;
     final int requestId = ++screenshotRequest;
     final int captureScreenWidth = width, captureScreenHeight = height;
+    final boolean windowCapture = automatic && Build.VERSION.SDK_INT >= 34;
     try {
-      final boolean windowCapture =
-          automatic
-              && !windowCaptureDisabled
-              && AutoCapturePolicy.useWindowCapture(Build.VERSION.SDK_INT, targetWindow);
+      final Rect requestedFrame;
+      if (windowCapture) {
+        requestedFrame = applicationWindowBounds(targetWindow);
+        if (!AutoCapturePolicy.useWindowCapture(Build.VERSION.SDK_INT, targetWindow)
+            || requestedFrame == null
+            || requestedFrame.isEmpty()) {
+          windowCaptureFailed(epoch, "Metadata jendela game belum tersedia.");
+          return;
+        }
+        if (!WindowCaptureFrame.containsSelection(requestedFrame, screenPoints)) {
+          fail(
+              "Area dialog harus berada seluruhnya di dalam jendela game. Pilih ulang area.", null);
+          return;
+        }
+      } else requestedFrame = new Rect(0, 0, captureScreenWidth, captureScreenHeight);
       TakeScreenshotCallback callback =
           new TakeScreenshotCallback() {
             public void onSuccess(ScreenshotResult result) {
@@ -522,26 +576,36 @@ public class RichAccessibilityService extends AccessibilityService {
                 result.getHardwareBuffer().close();
                 return;
               }
+              final Rect captureFrame =
+                  windowCapture
+                      ? WindowCaptureFrame.resolve(
+                          result.getHardwareBuffer().getWidth(),
+                          result.getHardwareBuffer().getHeight(),
+                          requestedFrame,
+                          captureScreenWidth,
+                          captureScreenHeight)
+                      : new Rect(requestedFrame);
               if (windowCapture
-                  && !AutoCapturePolicy.windowSizeMatches(
-                      result.getHardwareBuffer().getWidth(),
-                      result.getHardwareBuffer().getHeight(),
-                      width,
-                      height)) {
+                  && (captureFrame == null
+                      || !WindowCaptureFrame.containsSelection(captureFrame, screenPoints))) {
                 result.getHardwareBuffer().close();
-                screenshotPending = false;
-                windowCaptureDisabled = true;
-                restoreAutoOverlay();
-                scheduleAuto();
+                windowCaptureFailed(
+                    epoch, "Ukuran screenshot jendela game belum dapat dipetakan dengan aman.");
                 return;
               }
-              restoreAutoOverlay();
+              windowCaptureFailures = 0;
+              if (hiddenForCapture) restoreAutoOverlay();
               try {
                 showClose();
                 screenshotWorker.execute(
                     () ->
                         convertScreenshot(
-                            result, screenPoints, epoch, captureScreenWidth, captureScreenHeight));
+                            result,
+                            screenPoints,
+                            epoch,
+                            captureScreenWidth,
+                            captureScreenHeight,
+                            captureFrame));
               } catch (RuntimeException e) {
                 result.getHardwareBuffer().close();
                 if (valid(epoch)) fail("Layanan sedang dihentikan", e);
@@ -551,12 +615,11 @@ public class RichAccessibilityService extends AccessibilityService {
             public void onFailure(int error) {
               if (!valid(epoch) || requestId != screenshotRequest) return;
               screenshotPending = false;
-              restoreAutoOverlay();
+              if (hiddenForCapture) restoreAutoOverlay();
               if (windowCapture
                   && error != 6
                   && error != ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS) {
-                windowCaptureDisabled = true;
-                scheduleAuto();
+                windowCaptureFailed(epoch, "Screenshot jendela game gagal (kode " + error + ").");
                 return;
               }
               if (automatic && error == ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) {
@@ -577,18 +640,22 @@ public class RichAccessibilityService extends AccessibilityService {
               fail(message, null);
             }
           };
-      if (Build.VERSION.SDK_INT >= 34 && windowCapture)
-        takeScreenshotOfWindow(targetWindow, getMainExecutor(), callback);
-      else takeScreenshot(Display.DEFAULT_DISPLAY, getMainExecutor(), callback);
+      if (windowCapture) captureWindow(targetWindow, callback);
+      else captureDisplay(callback);
       main.postDelayed(
           () -> {
-            if (valid(epoch) && requestId == screenshotRequest && screenshotPending)
-              fail("Screenshot tidak merespons. Periksa layanan Accessibility.", null);
+            if (valid(epoch) && requestId == screenshotRequest && screenshotPending) {
+              if (windowCapture)
+                windowCaptureFailed(epoch, "Screenshot jendela game tidak merespons.");
+              else fail("Screenshot tidak merespons. Periksa layanan Accessibility.", null);
+            }
           },
           6500);
     } catch (RuntimeException e) {
       screenshotPending = false;
-      fail("Tidak dapat meminta screenshot Accessibility", e);
+      if (windowCapture && !(e instanceof SecurityException))
+        windowCaptureFailed(epoch, "Screenshot jendela belum tersedia pada game/perangkat ini.");
+      else fail("Tidak dapat meminta screenshot Accessibility", e);
     }
   }
 
@@ -597,7 +664,8 @@ public class RichAccessibilityService extends AccessibilityService {
       List<float[]> screenPoints,
       int epoch,
       int screenWidth,
-      int screenHeight) {
+      int screenHeight,
+      Rect captureFrame) {
     HardwareBuffer buffer = result.getHardwareBuffer();
     Bitmap hardware = null, copy = null;
     try {
@@ -606,17 +674,9 @@ public class RichAccessibilityService extends AccessibilityService {
       if (hardware == null) throw new IllegalStateException("Bitmap layar tidak tersedia");
       copy = hardware.copy(Bitmap.Config.ARGB_8888, false);
       if (copy == null) throw new IllegalStateException("Gambar layar tidak dapat disalin");
-      float factor = Math.min(1f, 1920f / Math.max(copy.getWidth(), copy.getHeight()));
-      if (factor < 1) {
-        Bitmap scaled =
-            Bitmap.createScaledBitmap(
-                copy,
-                Math.max(1, Math.round(copy.getWidth() * factor)),
-                Math.max(1, Math.round(copy.getHeight() * factor)),
-                true);
-        if (scaled != copy) copy.recycle();
-        copy = scaled;
-      }
+      Bitmap mapped = WindowCaptureFrame.compose(copy, captureFrame, screenWidth, screenHeight);
+      if (mapped != copy) copy.recycle();
+      copy = mapped;
       List<float[]> polygon = new ArrayList<>(screenPoints.size());
       for (float[] point : screenPoints)
         polygon.add(

@@ -1,5 +1,15 @@
 # Catatan perubahan
 
+## 0.12.2
+
+- Memperbaiki jalur Auto dialog Android 14+ yang sebelumnya dapat berpindah ke screenshot display lalu menyembunyikan hasil setiap scan.
+- Screenshot jendela tidak lagi harus berukuran sama dengan seluruh layar; offset dan ukuran jendela (termasuk inset status/navigation bar) dipetakan ke koordinat layar.
+- Tidak ada fallback menyembunyikan hasil untuk scan pada Android 14+. Error jendela dicoba ulang terbatas; jika tetap gagal, auto berhenti dengan pesan yang jelas.
+- Timeout membatalkan callback/konversi screenshot lama sebelum mencoba scan selanjutnya.
+- Satu kesalahan OCR tidak langsung menghapus terjemahan. Teks berubah harus terkonfirmasi dua scan; area kosong juga tetap memerlukan dua scan.
+- Android 11–13 tetap didukung dengan metode lama yang dapat berkedip. Mode manual, tap-through, banner kecil, ML Kit/DeepL dan mode streaming dipertahankan.
+- Mode streaming tidak diperbaiki dalam patch ini, sesuai permintaan penundaan sebelumnya.
+
 ## 0.12.1
 
 - Banner saat melingkari teks diperkecil dari 300 × 48 dp menjadi 196 × 30 dp (sekitar 59% lebih kecil berdasarkan luas).

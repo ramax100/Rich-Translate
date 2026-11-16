@@ -57,8 +57,10 @@ public class AutoModeTest {
 
   @Test
   public void partialWindowCannotUseDisplayCoordinates() {
-    assertFalse(AutoCapturePolicy.windowSizeMatches(1000, 400, 1080, 520));
-    assertTrue(AutoCapturePolicy.windowSizeMatches(1080, 520, 1080, 520));
+    assertNull(WindowCaptureFrame.resolve(1000, 400, new Rect(0, 0, 1080, 520), 1080, 520));
+    assertEquals(
+        new Rect(0, 0, 1080, 520),
+        WindowCaptureFrame.resolve(1080, 520, new Rect(0, 0, 1080, 520), 1080, 520));
   }
 
   @Test

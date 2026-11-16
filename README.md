@@ -2,7 +2,7 @@
 
 **Penerjemah teks game dan layar untuk Android 11+.**
 
-[Unduh APK](https://github.com/ramax100/Rich-Translate/releases/tag/v0.12.1) · [Catatan perubahan](CHANGELOG.md) · [Dokumentasi teknis](docs/TECHNICAL_NOTES.md)
+[Unduh APK](https://github.com/ramax100/Rich-Translate/releases/tag/v0.12.2) · [Catatan perubahan](CHANGELOG.md) · [Dokumentasi teknis](docs/TECHNICAL_NOTES.md)
 
 ## Tentang Aplikasi
 
@@ -22,7 +22,7 @@ Bahasa bawaan **Inggris → Indonesia**, mesin bawaan **ML Kit**. Model ML Kit p
 
 Latar lembut ini adalah lapisan putih transparan, **bukan blur asli pada gambar game**. Teks terjemahan tidak ikut diburamkan.
 
-Auto dialog diaktifkan lewat **Setelan → Auto dialog** dengan persetujuan terpisah. Pilihan lasso menjadi kotak pantauan, bukan deteksi seluruh layar. Teks harus sama pada dua scan sebelum diterjemahkan, sehingga ada jeda. Android 11–13 dan fallback Android 14+ menyembunyikan hasil sesaat saat scan (dapat berkedip). Android 14+ mencoba screenshot jendela tanpa overlay; jika ukuran jendela tidak cocok, digunakan fallback. Hasil tidak bisa digulir selama auto. Pilih ulang jika posisi kotak dialog berubah.
+Auto dialog diaktifkan lewat **Setelan → Auto dialog** dengan persetujuan terpisah. Pilihan lasso menjadi kotak pantauan, bukan deteksi seluruh layar. Teks harus sama pada dua scan sebelum diterjemahkan, sehingga ada jeda. Android 11–13 masih menyembunyikan hasil sesaat saat scan (dapat berkedip). **Android 14+ memakai screenshot jendela tanpa menyembunyikan hasil untuk scan**; inset status/navigation bar dipetakan ke koordinat layar. Jika API jendela gagal, auto mencoba ulang secara terbatas lalu berhenti dengan pesan—tidak diam-diam beralih ke metode berkedip. Satu hasil OCR yang berbeda/kosong tidak langsung menghapus terjemahan; perubahan atau area kosong harus terkonfirmasi dua scan. Hasil tidak bisa digulir selama auto. Pilih ulang jika posisi kotak dialog berubah.
 
 > OCR yang dibundel mendukung tulisan Latin. Hasil terjemahan dan penempatannya dapat kurang tepat. Layar yang dilindungi dari screenshot tidak didukung. APK saat ini adalah debug build pengujian; belum diuji pada HP fisik. Batasan rekaman/streaming dijelaskan di [dokumentasi teknis](docs/TECHNICAL_NOTES.md).
 
@@ -64,6 +64,7 @@ Komponen utama dalam `java/id/richtranslate/`:
 | `MainActivity.java` | Menu utama dan pengaturan |
 | `RichAccessibilityService.java` | Screenshot, alur OCR, dan overlay |
 | `AutoTextTracker.java` / `AutoCapturePolicy.java` | Stabilisasi teks, batas area dan kebijakan capture otomatis |
+| `WindowCaptureFrame.java` | Pemetaan screenshot jendela Android 14+ ke koordinat layar |
 | `TranslationEngine.java` | Pemilihan ML Kit/DeepL, batch dan cache sementara |
 | `DeepLApi.java` / `DeepLSettings.java` / `DeepLKeyStore.java` | API resmi, pengaturan key sendiri dan penyimpanan terenkripsi |
 | `FloatingBallView.java` / `LassoView.java` | Bola melayang dan seleksi teks |

@@ -1,6 +1,19 @@
-# Catatan teknis — Rich Translate 0.12.1
+# Catatan teknis — Rich Translate 0.12.2
 
-Android 11+ (API 30+). Package `id.richtranslate`, versionCode **13**, versionName `0.12.1`. Mesin bawaan **Google ML Kit on-device**, ditambah **DeepL API opsional/BYOK**, default Inggris → Indonesia. Debug build pengujian, bukan rilis produksi/Play Store.
+Android 11+ (API 30+). Package `id.richtranslate`, versionCode **14**, versionName `0.12.2`. Mesin bawaan **Google ML Kit on-device**, ditambah **DeepL API opsional/BYOK**, default Inggris → Indonesia. Debug build pengujian, bukan rilis produksi/Play Store.
+
+## Perbaikan kedip Auto dialog — 0.12.2
+
+Kasus yang dilaporkan pengguna: Android 14+, strip hilang–muncul rutin meskipun dialog tidak berubah. Ditemukan dua pemicu dalam kode: window buffer yang tidak sama dengan ukuran layar mematikan capture jendela secara permanen lalu memakai jalur hide/display setiap scan; satu variasi OCR juga langsung menghapus hasil lama.
+
+- API34+ automatic **hanya** `takeScreenshotOfWindow`, tidak ada fallback ke screenshot display/hide. API30–33 automatic tetap menyembunyikan hasil seperti sebelumnya; manual tetap screenshot display. `AutoCapturePolicy.hideOverlayForCapture` memisahkan keduanya secara eksplisit. Kontrol × dan host tetap terpasang/visible selama scan API34+ dan percobaan ulang.
+- `WindowCaptureFrame`: buffer berukuran layar menggunakan origin layar; buffer berukuran/aspek jendela dipetakan memakai `AccessibilityWindowInfo.getBoundsInScreen`. Skala proporsional didukung dengan toleransi aspek kecil; inset/offset tidak ditebak jika geometri tidak cocok. Area yang dipilih harus seluruhnya di jendela target. Buffer screenshot disalin/dipetakan di worker ke kanvas OCR maksimum sisi 1920; ini hanya memori pemrosesan, bukan screenshot yang digambar di atas game.
+- Metadata/error/ukuran yang belum dapat dipetakan dicoba paling banyak 3 kali, dengan jeda 1.200 dan 2.400 ms sebelum percobaan berikutnya. Jika tetap gagal, kembali ke bola dan beri pesan, bukan berkedip terus atau menangkap overlay sendiri. Layar aman/error akses langsung ditolak, tidak dibypass. Perangkat/game dengan API screenshot jendela bermasalah mungkin perlu memakai mode manual.
+- Screenshot timeout 6,5 detik dan job timeout 15 detik. Retry membatalkan epoch dan nomor request lama, sehingga callback/konversi yang terlambat tidak memulai OCR baru atau menampilkan hasil dari scan yang dibatalkan. HardwareBuffer tetap ditutup dan bitmap dibersihkan. Retry tidak menambah paralelisme pipeline.
+- OCR: pertahankan hasil saat satu scan berbeda; bersihkan setelah dua scan berturut-turut menyetujui perubahan. Kembalinya teks yang ditampilkan mereset kandidat noise, sehingga dua misread yang terpisah tidak dianggap stabil. Dua scan kosong tetap membersihkan hasil lama. Terjemahan baru tetap diverifikasi terhadap sumber sebelum render. Ada jeda pada scene berganti; bukan jaminan deteksi instan.
+- Pengaturan/flags mode streaming, DeepL, ML Kit, banner seleksi dan tap-through tidak diubah. Metode params/FLAG_SECURE tetap sama. Patch ini tidak memperbaiki siaran/rekaman.
+
+Pengujian API34 menggunakan subclass layanan/koneksi screenshot palsu: jalur sukses geometri diuji lewat bitmap sintetis, dan retry/error/timeout/visibility melalui callback palsu. **Belum ada pengujian pada HP/game nyata atau API screenshot jendela fisik.** Penghapusan jalur hide dalam kode tidak menjamin semua kedip dari game/OEM/perekam hilang.
 
 ## Banner pemilihan ringkas — 0.12.1
 
@@ -8,7 +21,7 @@ Yang diperkecil adalah chip petunjuk `LassoView` saat memilih teks, bukan notifi
 
 Target sentuh × tetap 44 × 44 dp, lebih besar daripada chip visual, dan dijaga dalam batas layar. Pembatalan pada ACTION_DOWN menelan sisa gesture hingga UP/CANCEL agar drag/lepas berikutnya tidak ikut menghasilkan seleksi atau callback batal kedua. Garis seleksi merah dan alur OCR tidak berubah. Instruksi aksesibilitas tetap menyebut melingkari teks, lepas jari dan ×.
 
-**Mode streaming sengaja tidak diubah.** `RichAccessibilityService.java`, pengaturan secure/FLAG_SECURE, DeepL, hasil terjemahan dan Auto dialog identik dengan 0.12.0. MainActivity hanya berganti label versi. Batasan layar hitam/kompatibilitas rekaman sebelumnya masih berlaku; jangan menganggap patch ini perbaikan streaming.
+**Mode streaming sengaja tidak diubah.** Pada patch 0.12.1, layanan/pengaturan secure/FLAG_SECURE, DeepL, hasil dan Auto dialog identik dengan 0.12.0; MainActivity saat itu hanya berganti label versi. Patch 0.12.2 mengubah jalur Auto dialog yang dijelaskan di atas, bukan flags streaming. Batasan layar hitam/kompatibilitas rekaman sebelumnya masih berlaku; jangan menganggap patch ini perbaikan streaming.
 
 Gambar `images/selection-compact.png` adalah simulasi Canvas/Robolectric untuk meninjau banner, bukan screenshot game atau hasil OCR HP. Belum diuji pada HP fisik.
 
@@ -31,9 +44,9 @@ Dokumentasi resmi: https://developers.deepl.com/api-reference/translate/request-
 
 Default OFF. Setelan → Auto dialog menampilkan persetujuan terpisah sebelum menyimpan pilihan. Mengaktifkan layanan Accessibility saja tidak memulai capture. Ketuk bola, lingkari **seluruh kotak dialog**, lalu area bounding rectangle dipakai untuk scan berikutnya. Tidak ada deteksi perpindahan posisi kotak: pilih ulang jika berubah.
 
-Siklus serial: screenshot → crop/OCR → normalisasi teks → stabilisasi dua scan → terjemahan mesin pilihan → scan verifikasi sumber → render jika masih sama. Scan selanjutnya dijadwalkan 1.200 ms setelah pekerjaan selesai, bukan timer bertumpuk. Waktu respons tergantung OCR/model/perangkat; bukan terjemahan instan. Efek ketik yang berhenti lebih dari satu siklus masih dapat dianggap stabil. Scene tanpa teks dibersihkan setelah dua scan kosong; teks berbeda membuang hasil lama setelah OCR mendeteksi perubahan. Teks yang sama mengabaikan variasi whitespace/case dan tidak memicu terjemahan ulang. Cache teks/terjemahan hanya di memori.
+Siklus serial: screenshot → crop/OCR → normalisasi teks → stabilisasi dua scan → terjemahan mesin pilihan → scan verifikasi sumber → render jika masih sama. Scan selanjutnya dijadwalkan 1.200 ms setelah pekerjaan selesai, bukan timer bertumpuk. Waktu respons tergantung OCR/model/perangkat; bukan terjemahan instan. Efek ketik yang berhenti lebih dari satu siklus masih dapat dianggap stabil. Scene tanpa teks dibersihkan setelah dua scan kosong; teks berbeda membuang hasil lama setelah perubahan dikonfirmasi dua scan berturut-turut. Teks yang sama mengabaikan variasi whitespace/case dan tidak memicu terjemahan ulang. Cache teks/terjemahan hanya di memori.
 
-Pada API 34+ mencoba `takeScreenshotOfWindow` target aplikasi fokus. Buffer harus sama ukuran dengan layar agar pemetaan koordinat aman; ukuran berbeda/error jendela beralih ke screenshot display. Pada API 30–33/fallback, host dan × disembunyikan, menunggu 110 ms lalu screenshot. Dikembalikan saat callback; batas tersembunyi 650 ms mengakhiri auto bila callback terlalu lambat, bukan membiarkan stop tersembunyi atau menangkap overlay sendiri. Kedip dimungkinkan dan disetujui pengguna. Tetap menghormati layar terlindungi; tidak mengakali FLAG_SECURE.
+Pada API34+, memakai `takeScreenshotOfWindow` target aplikasi fokus dengan pemetaan frame/inset dan tanpa fallback hide/display (sejak 0.12.2). Error yang berulang menghentikan auto. Pada API 30–33, host dan × disembunyikan, menunggu 110 ms lalu screenshot. Dikembalikan saat callback; batas tersembunyi 650 ms mengakhiri auto bila callback terlalu lambat, bukan membiarkan stop tersembunyi atau menangkap overlay sendiri. Kedip dimungkinkan dan disetujui pengguna. Tetap menghormati layar terlindungi; tidak mengakali FLAG_SECURE.
 
 Metadata jendela didapat melalui `getWindows()`, membutuhkan `canRetrieveWindowContent=true` dan `flagRetrieveInteractiveWindows`. Implementasi **tidak** memanggil getRootInActiveWindow/getRoot/getText ataupun membaca node aplikasi; izin sistem ini lebih luas dari pemakaian metadata saja. Android/OEM tertentu dapat meminta Accessibility dimatikan/dihidupkan lagi setelah update konfigurasi layanan.
 
@@ -79,7 +92,7 @@ Ukuran/posisi hasil adalah perkiraan OCR, bukan deteksi font asli game. Ketebala
 
 ## Instalasi dan penggunaan
 
-1. Hentikan sesi lama, pasang **RichTranslate-0.12.1.apk** sebagai pembaruan Rich Translate versi sebelumnya. Package dan sertifikat sama, versionCode meningkat. Tidak perlu uninstall untuk mempertahankan data.
+1. Hentikan sesi lama, pasang **RichTranslate-0.12.2.apk** sebagai pembaruan Rich Translate versi sebelumnya. Package dan sertifikat sama, versionCode meningkat. Tidak perlu uninstall untuk mempertahankan data.
 2. Buka Rich Translate. Pengaturan server lama dibersihkan otomatis. Pilih pasangan bahasa dan tekan **Siapkan bahasa offline** bila model belum siap. Jika sebelumnya hanya memakai server, model ML Kit mungkin perlu diunduh terlebih dahulu.
 3. Unduhan pertama memerlukan internet; setelah model siap, terjemahan bisa offline. Model terjemahan tidak dibundel dalam APK. Resource OCR Latin dan mesin native dibundel.
 4. Pastikan **Rich Translate • terjemahan layar** aktif di Setelan → Accessibility. Pada Android tertentu, sideload mungkin dibatasi; hanya izinkan setelan terbatas bila memahami dan memercayai APK.
@@ -100,15 +113,15 @@ Belum ada detail HP/Android/game/perekam atau reproduksi perangkat untuk laporan
 
 Build final `assembleDebug testDebugUnitTest lintDebug`: **BUILD SUCCESSFUL**.
 
-- **136 tes lulus**, 0 gagal/error/skipped: 128 tes sebelumnya ditambah 8 tes banner ringkas (ukuran/luas, alpha, area lama transparan, target sentuh, pembatalan sekali, seleksi merah, layar sempit, tanpa dimming/software bitmap, instruksi dan render simulasi).
-- Tes auto mencakup stabilisasi/efek ketik, deduplikasi, scene kosong/berulang, pembatalan epoch, persetujuan terpisah, rectangle area, aturan fallback screenshot serta pemisahan flag host hasil dan tombol stop. Pengujian flag bukan uji sentuhan lintas jendela pada HP.
+- **163 tes lulus**, 0 gagal/error/skipped: 136 tes sebelumnya ditambah 27 tes (12 frame/geometry/bitmap/policy, 12 jalur layanan Android 14+/legacy/retry/error/timeout/manual, dan 3 regresi noise OCR).
+- Tes auto mencakup stabilisasi/efek ketik, deduplikasi, scene kosong/berulang, pembatalan epoch, persetujuan terpisah, rectangle area, pemisahan capture modern/legacy serta pemisahan flag host hasil dan tombol stop. Pengujian flag bukan uji sentuhan lintas jendela pada HP.
 - Tes bola diperbarui: alpha pusat 102/255, RGB netral, ukuran tetap, pinggir area sentuh transparan, kontras pada latar terang dan gelap.
 - Tes migrasi memastikan pengaturan/kredensial server terhapus, setelan pengguna penting tetap, pembersihan idempotent dan startup layanan ikut membersihkan.
 - Tes stabilitas host, pemetaan posisi, layout white/black, scrolling hasil, garis merah, bounded gesture dan lifecycle sebelumnya tetap lulus.
 - Android Lint **0 error, 28 warning**. Rincian asli disertakan; warning berupa rekomendasi dependency/UI, lokalisasi string, constructor layout-editor, resource adaptive icon dan commit SharedPreferences sinkron saat menghapus key.
 - APK signature v2 diverifikasi. Sertifikat debug SHA-256 `773b818aea311a87fe553e6df35614f8e1227f88cc0677aa8d8e1c042e49b6e4`.
 - ARM64 + ARM32, minSdk 30, target/compile 34, JNI/DEX dikompresi. Penyimpanan instalasi lebih besar daripada file APK; model terjemahan terpisah.
-- Build final memakai heap Gradle 384 MiB/metaspace 256 MiB, ActiveProcessorCount=2, serta tes 384 MiB/fork per kelas. Artefak SDK uji diverifikasi dengan SHA-512 dan native runtime dengan SHA-1 resmi sebelum digunakan. Pada versi sebelumnya, redirect unduhan sempat menghasilkan respons bukan artefak; pemeriksaan checksum tetap dipertahankan. Build awal patch ini dihentikan saat unduhan dependency lambat, kemudian build/136 tes/lint diulang setelah cache terverifikasi tersedia. Ini masalah dependency lingkungan tes, bukan bukti crash aplikasi di HP.
+- Build final memakai heap Gradle 384 MiB/metaspace 256 MiB, ActiveProcessorCount=2, serta tes 384 MiB/fork per kelas. Artefak SDK uji diverifikasi dengan SHA-512 dan native runtime dengan SHA-1 resmi sebelum digunakan. Pada versi sebelumnya, redirect unduhan sempat menghasilkan respons bukan artefak; pemeriksaan checksum tetap dipertahankan. Build final patch ini mengulang assemble/163 tes/lint setelah perubahan pembatalan epoch diselesaikan; cache dependency telah diverifikasi sebelum build. Ini masalah dependency lingkungan tes, bukan bukti crash aplikasi di HP.
 
 **Belum diuji di HP fisik, game/rekaman nyata atau OCR/ML Kit end-to-end.** Tes JVM dan render Robolectric tidak membuktikan semua bug hilang. Contoh layout hasil dalam laporan adalah teks/kotak manual, bukan OCR gambar pengguna. Gambar halaman utama dapat menunjukkan SDK model belum tersedia karena lingkungan tes tidak menjalankan inferensi ML Kit.
 
